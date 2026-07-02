@@ -1,5 +1,6 @@
 #include <allegro5/allegro.h>
 #include <allegro5/allegro_primitives.h>
+#include <allegro5/allegro_image.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
@@ -13,63 +14,59 @@
 #define ANCHO 38
 #define VIDA_MAXIMA 6
 
-struct item_ {
+typedef struct {
     char nombre[10];
     int consumir;
-};
-typedef struct item_ item;
+} item;
 
-struct mochila_ {
+typedef struct {
     item items[10];
-};
-typedef struct mochila_ mochila;
+} mochila;
 
-struct personaje_ {
+typedef struct {
     char nombre[10];
     int vida;
-    float X;
-    float Y;
+    float X, Y;
     float velocidad;
     mochila bag;
-    float w;
-    float h;
     float inicioX, inicioY, finX, finY;
     bool yendoAlFin;
-};
-typedef struct personaje_ personaje;
+    int frameActual;
+    int direccion;
+    float tiempoAnimacion;
+} personaje;
 
+// Variables globales
 personaje jugador;
 personaje enemigo;
+ALLEGRO_BITMAP *spriteJugador = NULL;
+ALLEGRO_BITMAP *spriteEnemigo = NULL;
+ALLEGRO_BITMAP *spritePared = NULL;
+ALLEGRO_BITMAP *spriteFondo = NULL;
 
+// Prototipos
 void cargarMapa(char mapa[ALTO][ANCHO]);
 void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, float nuevaY);
 void dibujarMapa(char mapa[ALTO][ANCHO]);
 void dibujarVida(int vida);
 void reiniciarJuego(char mapa[ALTO][ANCHO]);
+void cargarAssets();
 
 int main() {
-    float posX = TAMANO_CUADRADO; 
-    float posY = TAMANO_CUADRADO;
     float tiempoUltimoDaño = 0;
     jugador.vida = VIDA_MAXIMA;
-
-    bool salir = true;
-
-    char mapa[ALTO][ANCHO];
-    cargarMapa(mapa);
 
     if (!al_init()) return -1;
     al_install_keyboard();
     al_init_primitives_addon();
+    al_init_image_addon();
+
+    cargarAssets();
+    al_set_new_display_option(ALLEGRO_SAMPLE_BUFFERS, 1, ALLEGRO_SUGGEST);
+    al_set_new_display_option(ALLEGRO_SAMPLES, 8, ALLEGRO_SUGGEST);
+    al_set_new_bitmap_flags(ALLEGRO_MIN_LINEAR | ALLEGRO_MAG_LINEAR);
 
     ALLEGRO_DISPLAY *display = al_create_display(ANCHO_PANTALLA, ALTO_PANTALLA);
-    if (!display) {
-        fprintf(stderr, "Error al crear display.\n");
-        return -1;
-    }
-
-    al_set_window_title(display, "Juego - Colisiones con mapa");
-
     ALLEGRO_TIMER *timer = al_create_timer(1.0 / 60);
     ALLEGRO_EVENT_QUEUE *queue = al_create_event_queue();
 
@@ -77,101 +74,246 @@ int main() {
     al_register_event_source(queue, al_get_keyboard_event_source());
     al_register_event_source(queue, al_get_timer_event_source(timer));
 
+    char mapa[ALTO][ANCHO];
+    cargarMapa(mapa);
     al_start_timer(timer);
 
+    bool salir = false;
     ALLEGRO_KEYBOARD_STATE teclado;
 
-    while (salir) {
+    while (!salir) {
         ALLEGRO_EVENT evento;
         al_wait_for_event(queue, &evento);
 
-        if (evento.type == ALLEGRO_EVENT_DISPLAY_CLOSE) salir = false;
+        if (evento.type == ALLEGRO_EVENT_DISPLAY_CLOSE) 
+        salir = true;
         if (evento.type == ALLEGRO_EVENT_TIMER) {
+            al_get_keyboard_state(&teclado);
+            if (al_key_down(&teclado, ALLEGRO_KEY_ESCAPE)) salir = true;
+
             float nuevaX = jugador.X;
             float nuevaY = jugador.Y;
+            float distancia = sqrt(pow((jugador.X + 25) - (enemigo.X + 25), 2) + pow((jugador.Y + 25) - (enemigo.Y + 25), 2));
 
-            al_get_keyboard_state(&teclado);
-
-            if (al_key_down(&teclado, ALLEGRO_KEY_W)) nuevaY -= VELOCIDAD;
-            if (al_key_down(&teclado, ALLEGRO_KEY_S)) nuevaY += VELOCIDAD;
-            if (al_key_down(&teclado, ALLEGRO_KEY_A)) nuevaX -= VELOCIDAD;
-            if (al_key_down(&teclado, ALLEGRO_KEY_D)) nuevaX += VELOCIDAD;
-            if (al_key_down(&teclado, ALLEGRO_KEY_ESCAPE)) salir = false;
+            if (distancia < 50) {
+            if (al_get_time() - tiempoUltimoDaño > 1.0) { 
+                jugador.vida--; 
+                tiempoUltimoDaño = al_get_time();
+                printf("Vida actual: %d\n", jugador.vida);
+            }
+            }
+            if (al_key_down(&teclado, ALLEGRO_KEY_W)) {
+                nuevaY -= VELOCIDAD; 
+                jugador.direccion = 3; 
+            }
+            if (al_key_down(&teclado, ALLEGRO_KEY_S)) {
+                nuevaY += VELOCIDAD; 
+                jugador.direccion = 0; 
+            }
+            if (al_key_down(&teclado, ALLEGRO_KEY_A)) {
+                nuevaX -= VELOCIDAD; 
+                jugador.direccion = 1; 
+            }
+            if (al_key_down(&teclado, ALLEGRO_KEY_D)) { 
+                nuevaX += VELOCIDAD; 
+                jugador.direccion = 2; 
+            }
 
             colision(mapa, &jugador.X, &jugador.Y, nuevaX, nuevaY);
+
             if (jugador.vida <= 0) {
+                printf("¡Has muerto! Reiniciando...\n");
                 reiniciarJuego(mapa);
             }
-
-            if (enemigo.yendoAlFin) {
-                if (enemigo.X < enemigo.finX) enemigo.X += 2;
-                else enemigo.yendoAlFin = false;
-            } else {
-                if (enemigo.X > enemigo.inicioX) enemigo.X -= 2;
-                else enemigo.yendoAlFin = true;
+            // Enemigo
+            if (enemigo.yendoAlFin) { 
+                enemigo.X += 2; 
+                if (enemigo.X >= enemigo.finX) 
+                enemigo.yendoAlFin = false; 
             }
-            float distX = (jugador.X + 25) - (enemigo.X + 25);
-            float distY = (jugador.Y + 25) - (enemigo.Y + 25);
-            float distancia = sqrt(distX * distX + distY * distY);
-
-            if (distancia < 40) {
-                float tiempoActual = al_get_time();
-                
-                if (tiempoActual - tiempoUltimoDaño > 1.0) {
-                    if (jugador.vida > 0) {
-                        jugador.vida -= 1;
-                        tiempoUltimoDaño = tiempoActual;
-                    }
-                }
+            else {
+                enemigo.X -= 2; 
+                if (enemigo.X <= enemigo.inicioX) 
+                enemigo.yendoAlFin = true; 
             }
 
-            al_clear_to_color(al_map_rgb(10, 10, 10));
+            // Dibujo
+            al_clear_to_color(al_map_rgb(0, 0, 0));
+             if (spriteFondo) al_draw_bitmap(spriteFondo, 0, 0, 0);
             dibujarMapa(mapa);
-            al_draw_filled_rectangle(jugador.X, jugador.Y, jugador.X + TAMANO_CUADRADO, jugador.Y + TAMANO_CUADRADO, al_map_rgb(255, 0, 0));
-            al_draw_filled_circle(enemigo.X + 25, enemigo.Y + 25, 20, al_map_rgb(0, 255, 0));
+            al_set_blender(ALLEGRO_ADD, ALLEGRO_ALPHA, ALLEGRO_INVERSE_ALPHA);
+            
+            if (spriteJugador) {
+                al_draw_scaled_bitmap(spriteJugador, 0, 0, al_get_bitmap_width(spriteJugador), al_get_bitmap_height(spriteJugador),jugador.X, jugador.Y, 50, 50, 0);
+            }
+
+            if (spriteEnemigo) {
+                al_draw_scaled_bitmap(spriteEnemigo, 0, 0, al_get_bitmap_width(spriteEnemigo), al_get_bitmap_height(spriteEnemigo),enemigo.X, enemigo.Y, 50, 50, 0);
+            }
+            
             dibujarVida(jugador.vida);
             al_flip_display();
         }
     }
 
-    al_destroy_timer(timer);
-    al_destroy_event_queue(queue);
+    al_destroy_bitmap(spriteJugador);
+    al_destroy_bitmap(spriteEnemigo);
+    al_destroy_bitmap(spritePared);
+    al_destroy_bitmap(spriteFondo);
     al_destroy_display(display);
     return 0;
 }
 
 void cargarMapa(char mapa[ALTO][ANCHO]) {
-    FILE *archivofop = fopen("mapa2 copy.txt", "r");
-    if (!archivofop) {
-        fprintf(stderr, "Error al abrir el archivo del mapa.\n");
-        return;
-    }
-
+    FILE *f = fopen("mapa2 copy.txt", "r");
+    if (!f) return;
     for (int i = 0; i < ALTO; i++) {
         for (int j = 0; j < ANCHO; j++) {
-            fscanf(archivofop," %c",&mapa[i][j]);
+            fscanf(f, " %c", &mapa[i][j]);
             if (mapa[i][j] == '@') {
                 jugador.X = j * TAMANO_CUADRADO;
-                jugador.Y = i * TAMANO_CUADRADO;
+                jugador.Y = i * TAMANO_CUADRADO; 
             }
             if (mapa[i][j] == 'E') {
-                enemigo.X = j * TAMANO_CUADRADO;
-                enemigo.Y = i * TAMANO_CUADRADO;
-                enemigo.inicioX = j * TAMANO_CUADRADO;
-                enemigo.finX = (j + 5) * TAMANO_CUADRADO;
-                enemigo.yendoAlFin = true;
+                enemigo.X = j * TAMANO_CUADRADO; 
+                enemigo.Y = i * TAMANO_CUADRADO; 
+                enemigo.inicioX = j * TAMANO_CUADRADO; 
+                enemigo.finX = (j + 5) * TAMANO_CUADRADO; 
+                enemigo.yendoAlFin = true; 
             }
         }
     }
-    fclose(archivofop);
+    fclose(f);
+}
+
+void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, float nuevaY) {
+
+    float size = TAMANO_CUADRADO;
+    if (nuevaX != *posX) {
+
+        int direccion = (nuevaX > *posX) ? 1 : -1;
+
+        float intentoX = *posX;
+
+       
+
+        while (intentoX != nuevaX) {
+
+            intentoX += direccion;
+
+           
+
+            int left   = (int)(intentoX / size);
+
+            int right  = (int)((intentoX + size - 0.001) / size);
+
+            int top    = (int)(*posY / size);
+
+            int bottom = (int)((*posY + size - 0.001) / size);
+
+
+
+            bool colision = false;
+
+            for (int y = top; y <= bottom; y++) {
+
+                for (int x = left; x <= right; x++) {
+
+                    if (x < 0 || x >= ANCHO || y < 0 || y >= ALTO || mapa[y][x] == '#') colision = true;
+
+                }
+
+            }
+
+
+
+            if (colision) {
+
+                intentoX -= direccion;
+
+                break;
+
+            }
+
+        }
+
+        *posX = intentoX;
+
+    }
+
+
+
+    if (nuevaY != *posY) {
+
+        int direccion = (nuevaY > *posY) ? 1 : -1;
+
+        float intentoY = *posY;
+
+       
+
+        while (intentoY != nuevaY) {
+
+            intentoY += direccion;
+
+           
+
+            int left   = (int)(*posX / size);
+
+            int right  = (int)((*posX + size - 0.001) / size);
+
+            int top    = (int)(intentoY / size);
+
+            int bottom = (int)((intentoY + size - 0.001) / size);
+
+
+
+            bool colision = false;
+
+            for (int y = top; y <= bottom; y++) {
+
+                for (int x = left; x <= right; x++) {
+
+                    if (x < 0 || x >= ANCHO || y < 0 || y >= ALTO || mapa[y][x] == '#') colision = true;
+
+                }
+
+            }
+
+
+
+            if (colision) {
+
+                intentoY -= direccion;
+
+                break;
+
+            }
+
+        }
+
+        *posY = intentoY;
+
+    }
+
+}
+
+void dibujarMapa(char mapa[ALTO][ANCHO]) {
+    for (int i = 0; i < ALTO; i++) {
+        for (int j = 0; j < ANCHO; j++) {
+            if (mapa[i][j] == '#') al_draw_scaled_bitmap(spritePared, 0, 0, al_get_bitmap_width(spritePared), al_get_bitmap_height(spritePared), j * TAMANO_CUADRADO, i * TAMANO_CUADRADO, TAMANO_CUADRADO, TAMANO_CUADRADO, 0);
+        }
+    }
 }
 
 void dibujarVida(int vida) {
     for (int i = 0; i < 3; i++) {
         float x = 20 + i * 50;
         float y = 20;
+        
         al_draw_filled_circle(x, y, 15, al_map_rgb(50, 50, 50));
+        
         int estado = vida - (i * 2);
+        
         if (estado >= 2) {
             al_draw_filled_circle(x, y, 10, al_map_rgb(255, 0, 0));
         } else if (estado == 1) {
@@ -180,70 +322,18 @@ void dibujarVida(int vida) {
     }
 }
 
-void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, float nuevaY) {
-    float size = TAMANO_CUADRADO;
-
-    if (nuevaX != *posX) {
-        int direccion = (nuevaX > *posX) ? 1 : -1;
-        float intentoX = *posX;
-        
-        while (intentoX != nuevaX) {
-            intentoX += direccion;
-            int left   = (int)(intentoX / size);
-            int right  = (int)((intentoX + size - 0.001) / size);
-            int top    = (int)(*posY / size);
-            int bottom = (int)((*posY + size - 0.001) / size);
-            bool colision = false;
-            for (int y = top; y <= bottom; y++) {
-                for (int x = left; x <= right; x++) {
-                    if (x < 0 || x >= ANCHO || y < 0 || y >= ALTO || mapa[y][x] == '#') colision = true;
-                }
-            }
-            if (colision) {
-                intentoX -= direccion;
-                break; 
-            }
-        }
-        *posX = intentoX;
-    }
-
-    if (nuevaY != *posY) {
-        int direccion = (nuevaY > *posY) ? 1 : -1;
-        float intentoY = *posY;
-        
-        while (intentoY != nuevaY) {
-            intentoY += direccion;
-            int left   = (int)(*posX / size);
-            int right  = (int)((*posX + size - 0.001) / size);
-            int top    = (int)(intentoY / size);
-            int bottom = (int)((intentoY + size - 0.001) / size);
-            bool colision = false;
-            for (int y = top; y <= bottom; y++) {
-                for (int x = left; x <= right; x++) {
-                    if (x < 0 || x >= ANCHO || y < 0 || y >= ALTO || mapa[y][x] == '#') colision = true;
-                }
-            }
-            if (colision) {
-                intentoY -= direccion;
-                break;
-            }
-        }
-        *posY = intentoY;
-    }
-}
-
-void dibujarMapa(char mapa[ALTO][ANCHO]) {
-    for (int i = 0; i < ALTO; i++) {
-        for (int j = 0; j < ANCHO; j++) {
-            if (mapa[i][j] == '#') {
-                float x = j * TAMANO_CUADRADO;
-                float y = i * TAMANO_CUADRADO;
-                al_draw_filled_rectangle(x, y, x + TAMANO_CUADRADO, y + TAMANO_CUADRADO, al_map_rgb(150, 150, 150));
-            }
-        }
-    }
-}
 void reiniciarJuego(char mapa[ALTO][ANCHO]) {
     jugador.vida = VIDA_MAXIMA;
     cargarMapa(mapa);
+    al_rest(0.5); 
+}
+void cargarAssets() {
+    spriteJugador = al_load_bitmap("jugador.png");
+    al_convert_mask_to_alpha(spriteJugador, al_map_rgb(255, 255, 255));
+
+    spriteEnemigo = al_load_bitmap("enemigo.png");
+    al_convert_mask_to_alpha(spriteEnemigo, al_map_rgb(255, 255, 255));
+
+    spritePared = al_load_bitmap("pared.png");
+    spriteFondo = al_load_bitmap("fondo.png");
 }
