@@ -5,9 +5,10 @@
 #include <math.h>
 #include <stdlib.h>
 
-#define ANCHO_PANTALLA 1900
-#define ALTO_PANTALLA 1150
-#define TAMANO_CUADRADO 50
+#define ANCHO_PANTALLA 950//1900
+#define ALTO_PANTALLA 575//1150
+#define TAMANO_CUADRADO 25//50
+
 #define VELOCIDAD 8
 #define ALTO 23
 #define ANCHO 38
@@ -34,22 +35,29 @@ struct personaje_ {
     float w;
     float h;
     float inicioX, inicioY, finX, finY;
-    bool yendoAlFin;
+    bool yendoAlFin;//QUE FUNCION CUMPLE ESTA VARIABLE?
 };
 typedef struct personaje_ personaje;
 
-personaje jugador;
+//personaje jugador;
+/*
+LO COMENTÉ PORQUE EN UNAS FUNCIONES INGRESABAS LOS VALORES DEL JUGADOR
+LO CUAL ES REDUNDANTE YA QUE TENIAS AL PERSONAJE COMO VARIABLE GLOBAL
+TRABAJA AL PERSONAJE COMO VARIABLE LOCAL E INGRESA SUS VALORES A LAS FUNCIONES
+*/
+
 personaje enemigo;
 
 void cargarMapa(char mapa[ALTO][ANCHO]);
 void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, float nuevaY);
 void dibujarMapa(char mapa[ALTO][ANCHO]);
 void dibujarVida(int vida);
-void reiniciarJuego(char mapa[ALTO][ANCHO]);
+void reiniciarJuego(char mapa[ALTO][ANCHO], int *vidas);
 
 int main() {
-    float posX = TAMANO_CUADRADO; 
-    float posY = TAMANO_CUADRADO;
+    //float posX = TAMANO_CUADRADO; 
+    //float posY = TAMANO_CUADRADO;
+    personaje jugador;
     float tiempoUltimoDaño = 0;
     jugador.vida = VIDA_MAXIMA;
 
@@ -61,7 +69,7 @@ int main() {
     if (!al_init()) return -1;
     al_install_keyboard();
     al_init_primitives_addon();
-
+    
     ALLEGRO_DISPLAY *display = al_create_display(ANCHO_PANTALLA, ALTO_PANTALLA);
     if (!display) {
         fprintf(stderr, "Error al crear display.\n");
@@ -91,7 +99,8 @@ int main() {
             float nuevaY = jugador.Y;
 
             al_get_keyboard_state(&teclado);
-
+            
+            //ARREGLAR ESSTRUCTURA DE LOS IF Y CREAR UNA FUNCION QUE ADMINISTRE EL MOVIMIENTO DEL PERSONAJE
             if (al_key_down(&teclado, ALLEGRO_KEY_W)) nuevaY -= VELOCIDAD;
             if (al_key_down(&teclado, ALLEGRO_KEY_S)) nuevaY += VELOCIDAD;
             if (al_key_down(&teclado, ALLEGRO_KEY_A)) nuevaX -= VELOCIDAD;
@@ -100,16 +109,18 @@ int main() {
 
             colision(mapa, &jugador.X, &jugador.Y, nuevaX, nuevaY);
             if (jugador.vida <= 0) {
-                reiniciarJuego(mapa);
+                reiniciarJuego(mapa, &jugador.vida);
             }
 
-            if (enemigo.yendoAlFin) {
+            if (enemigo.yendoAlFin) {//ORDENAR IF Y ELSE
                 if (enemigo.X < enemigo.finX) enemigo.X += 2;
                 else enemigo.yendoAlFin = false;
             } else {
                 if (enemigo.X > enemigo.inicioX) enemigo.X -= 2;
                 else enemigo.yendoAlFin = true;
             }
+
+            //ES MEJOR GENERAR UN STRUCT DIFERENTE PARA EL ENEMIGO
             float distX = (jugador.X + 25) - (enemigo.X + 25);
             float distY = (jugador.Y + 25) - (enemigo.Y + 25);
             float distancia = sqrt(distX * distX + distY * distY);
@@ -127,6 +138,7 @@ int main() {
 
             al_clear_to_color(al_map_rgb(10, 10, 10));
             dibujarMapa(mapa);
+            //CREAR UNA FUNCION QUE DIBUJE EL JUGADOR Y EL ENEMIGO
             al_draw_filled_rectangle(jugador.X, jugador.Y, jugador.X + TAMANO_CUADRADO, jugador.Y + TAMANO_CUADRADO, al_map_rgb(255, 0, 0));
             al_draw_filled_circle(enemigo.X + 25, enemigo.Y + 25, 20, al_map_rgb(0, 255, 0));
             dibujarVida(jugador.vida);
@@ -140,6 +152,7 @@ int main() {
     return 0;
 }
 
+//INGRESAR COMO PARAMETROS LAS VARIABLES DE LOS PERSONAJES
 void cargarMapa(char mapa[ALTO][ANCHO]) {
     FILE *archivofop = fopen("mapa2 copy.txt", "r");
     if (!archivofop) {
@@ -180,31 +193,34 @@ void dibujarVida(int vida) {
     }
 }
 
+//CHEQUEA VARIABLES QUE SEAN INNECESARIAS
 void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, float nuevaY) {
     float size = TAMANO_CUADRADO;
 
     if (nuevaX != *posX) {
-        int direccion = (nuevaX > *posX) ? 1 : -1;
-        float intentoX = *posX;
+        int direccion = (nuevaX > *posX) ? 1 : -1;//*
+//*SABES LO QUE SIGNIFICA? SI LO SABES, EXPLICAMELO. SI NO, CAMBIALO POR ALGO QUE SI SEPAS.
+        //float intentoX = *posX; ELIMINE LA VARIABLE intentoX
         
-        while (intentoX != nuevaX) {
-            intentoX += direccion;
-            int left   = (int)(intentoX / size);
-            int right  = (int)((intentoX + size - 0.001) / size);
+        while (*posX != nuevaX) {
+            *posX += direccion;
+            int left   = (int)(*posX / size);
+            int right  = (int)((*posX + size - 0.001) / size);
             int top    = (int)(*posY / size);
             int bottom = (int)((*posY + size - 0.001) / size);
             bool colision = false;
             for (int y = top; y <= bottom; y++) {
                 for (int x = left; x <= right; x++) {
+                    //DEJAR LOS IF HACIA ABAJO
                     if (x < 0 || x >= ANCHO || y < 0 || y >= ALTO || mapa[y][x] == '#') colision = true;
                 }
             }
             if (colision) {
-                intentoX -= direccion;
+                *posX -= direccion;
                 break; 
             }
         }
-        *posX = intentoX;
+        //*posX = intentoX;
     }
 
     if (nuevaY != *posY) {
@@ -243,7 +259,7 @@ void dibujarMapa(char mapa[ALTO][ANCHO]) {
         }
     }
 }
-void reiniciarJuego(char mapa[ALTO][ANCHO]) {
-    jugador.vida = VIDA_MAXIMA;
+void reiniciarJuego(char mapa[ALTO][ANCHO], int *vida) {
+    *vida = VIDA_MAXIMA;
     cargarMapa(mapa);
 }
