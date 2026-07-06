@@ -102,9 +102,10 @@ int main() {
     char mapa[ALTO][ANCHO];
     cargarMapa(mapa);
     int contador = 0;
-for(int i = 0; i < 20; i++) {
-    if(listaBalas[i].activa) contador++;
-}
+    for(int i = 0; i < 20; i++) {
+        if(listaBalas[i].activa) 
+            contador++;
+    }
     al_start_timer(timer);
 
     printf("Balas iniciales: %d\n", jugador.balas);
@@ -113,12 +114,14 @@ for(int i = 0; i < 20; i++) {
         ALLEGRO_EVENT evento;
         al_wait_for_event(queue, &evento);
 
-        if (evento.type == ALLEGRO_EVENT_DISPLAY_CLOSE) salir = true;
+        if (evento.type == ALLEGRO_EVENT_DISPLAY_CLOSE) 
+        salir = true;
 
         if (evento.type == ALLEGRO_EVENT_TIMER) {
             ALLEGRO_KEYBOARD_STATE teclado;
             al_get_keyboard_state(&teclado);
-            if (al_key_down(&teclado, ALLEGRO_KEY_ESCAPE)) salir = true;
+            if (al_key_down(&teclado, ALLEGRO_KEY_ESCAPE)) 
+            salir = true;
 
             float nuevaX = jugador.X;
             float nuevaY = jugador.Y;
@@ -140,30 +143,25 @@ for(int i = 0; i < 20; i++) {
                 jugador.direccion = 2; 
             }
             for (int i = 0; i < 10; i++) {
-        if (misBalas[i].activa) {
-            misBalas[i].X += misBalas[i].velX;
-            misBalas[i].Y += misBalas[i].velY;
+                if (misBalas[i].activa) {
+                    misBalas[i].X += misBalas[i].velX;
+                    misBalas[i].Y += misBalas[i].velY;
 
-            if (misBalas[i].X < 0 || misBalas[i].X > ANCHO_PANTALLA || misBalas[i].Y < 0 || misBalas[i].Y > ALTO_PANTALLA) {
-                misBalas[i].activa = false;
-            }
-            for (int j = 0; j < MAX_ENEMIGOS; j++) {
-            if (listaEnemigos[j].activo) {
-                float centroEnemigoX = listaEnemigos[j].X + 25;
-                float centroEnemigoY = listaEnemigos[j].Y + 25;
-
-                if (abs(misBalas[i].X - centroEnemigoX) < 30 && 
-                    abs(misBalas[i].Y - centroEnemigoY) < 30) {
-                    
-                    listaEnemigos[j].activo = false;
-                    misBalas[i].activa = false;      
+                    if (misBalas[i].X < 0 || misBalas[i].X > ANCHO_PANTALLA || misBalas[i].Y < 0 || misBalas[i].Y > ALTO_PANTALLA) {
+                        misBalas[i].activa = false;
+                    }
+                    for (int j = 0; j < MAX_ENEMIGOS; j++) {
+                        if (listaEnemigos[j].activo) {
+                            float centroEnemigoX = listaEnemigos[j].X + 25;
+                            float centroEnemigoY = listaEnemigos[j].Y + 25;
+                            if (abs(misBalas[i].X - centroEnemigoX) < 30 && abs(misBalas[i].Y - centroEnemigoY) < 30) {
+                                listaEnemigos[j].activo = false;
+                                misBalas[i].activa = false;      
+                            }
+                        }
+                    }
                 }
             }
-        }
-        }
-    }
-    
-
             colision(mapa, &jugador.X, &jugador.Y, nuevaX, nuevaY);
             moverEnemigos(mapa);
 
@@ -218,22 +216,24 @@ for(int i = 0; i < 20; i++) {
         al_draw_scaled_bitmap(spriteJugador, 0, 0, 50, 50, jugador.X, jugador.Y, 50, 50, 0);
         
         for (int i = 0; i < 15; i++) 
-            if (listaEnemigos[i].activo) 
+            if (listaEnemigos[i].activo)
+
             al_draw_scaled_bitmap(spriteEnemigo, 0, 0, 50, 50, listaEnemigos[i].X, listaEnemigos[i].Y, 50, 50, 0);
         
         dibujarVida(jugador.vida);
+
         for (int i = 0; i < 20; i++) {
-    if (listaBalas[i].activa) {
-        al_draw_filled_circle(listaBalas[i].X + 25, listaBalas[i].Y + 25, 10, al_map_rgb(0, 0, 0));
-    }
-}
+            if (listaBalas[i].activa) {
+            al_draw_filled_circle(listaBalas[i].X + 25, listaBalas[i].Y + 25, 10, al_map_rgb(0, 0, 0));
+            }
+        }
         for (int i = 0; i < 10; i++) {
-    if (misBalas[i].activa) {
-        al_draw_filled_circle(misBalas[i].X, misBalas[i].Y, 5, al_map_rgb(0, 0, 0));
-    }
-}
+            if (misBalas[i].activa) {
+            al_draw_filled_circle(misBalas[i].X, misBalas[i].Y, 5, al_map_rgb(0, 0, 0));
+            }
+        }
         
-        al_flip_display();
+    al_flip_display();
     }
 
     al_destroy_bitmap(spriteJugador);
@@ -393,31 +393,40 @@ void moverEnemigos(char mapa[ALTO][ANCHO]) {
     float proxY;
     float RANGO_DETECCION = 800.0;
 
-    for (int i = 0; i < MAX_ENEMIGOS; i++) {
+        for (int i = 0; i < MAX_ENEMIGOS; i++) {
         if (!listaEnemigos[i].activo) 
             continue;
 
         float distX = jugador.X - listaEnemigos[i].X;
         float distY = jugador.Y - listaEnemigos[i].Y;
         float distanciaJugador = sqrt(distX * distX + distY * distY);
-        if (listaEnemigos[i].X < jugador.X) proxX += VELOCIDAD_ENEMIGO;
-else if (listaEnemigos[i].X > jugador.X) proxX -= VELOCIDAD_ENEMIGO;
+        if (listaEnemigos[i].X < jugador.X) 
+        proxX += VELOCIDAD_ENEMIGO;
+        else if (listaEnemigos[i].X > jugador.X) 
+        proxX -= VELOCIDAD_ENEMIGO;
 
-if (listaEnemigos[i].Y < jugador.Y) proxY += VELOCIDAD_ENEMIGO;
-else if (listaEnemigos[i].Y > jugador.Y) proxY -= VELOCIDAD_ENEMIGO;
+        if (listaEnemigos[i].Y < jugador.Y) 
+        proxY += VELOCIDAD_ENEMIGO;
+        else if (listaEnemigos[i].Y > jugador.Y) 
+        proxY -= VELOCIDAD_ENEMIGO;
 
         if (distanciaJugador < RANGO_DETECCION) {
             float proxX = listaEnemigos[i].X;
             float proxY = listaEnemigos[i].Y;
 
-            if (listaEnemigos[i].X < jugador.X) proxX += listaEnemigos[i].velocidad;
-            else if (listaEnemigos[i].X > jugador.X) proxX -= listaEnemigos[i].velocidad;
+            if (listaEnemigos[i].X < jugador.X) 
+            proxX += listaEnemigos[i].velocidad;
+            else if (listaEnemigos[i].X > jugador.X) 
+            proxX -= listaEnemigos[i].velocidad;
 
-            if (listaEnemigos[i].Y < jugador.Y) proxY += listaEnemigos[i].velocidad;
-            else if (listaEnemigos[i].Y > jugador.Y) proxY -= listaEnemigos[i].velocidad;
+            if (listaEnemigos[i].Y < jugador.Y) 
+            proxY += listaEnemigos[i].velocidad;
+            else if (listaEnemigos[i].Y > jugador.Y) 
+            proxY -= listaEnemigos[i].velocidad;
 
             for (int j = 0; j < MAX_ENEMIGOS; j++) {
-                if (i == j || !listaEnemigos[j].activo) continue;
+                if (i == j || !listaEnemigos[j].activo) 
+                continue;
 
                 float dx = listaEnemigos[i].X - listaEnemigos[j].X;
                 float dy = listaEnemigos[i].Y - listaEnemigos[j].Y;
