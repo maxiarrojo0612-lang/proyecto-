@@ -17,6 +17,13 @@
 #define MAX_ENEMIGOS 12
 #define VELOCIDAD_ENEMIGO 1
 #define COOLDOWN_DISPARO_ENEMIGO 2.0
+#define MAX_BALAS_EN 20
+#define MAX_BALAS_PJ 20
+
+//mochila-items
+//variables globales
+//agregar palanca-bombas-curaciones
+//
 
 typedef struct {
     char nombre[10];
@@ -24,16 +31,9 @@ typedef struct {
 } item;
 typedef struct {
     float X, Y;
-    bool activa;
-} municion;
-typedef struct {
-    float X, Y;
     float velX, velY;
     bool activa;
-} BalaDisparada;
-
-BalaDisparada misBalas[10];
-municion listaBalas[20];
+} municion;
 
 typedef struct {
     item items[10];
@@ -47,7 +47,7 @@ typedef struct {
     float velocidad;
     mochila bag;
     int direccion;
-    municion municion;
+    municion listaBalas[MAX_BALAS_PJ];
 } personaje;
 
 typedef struct {
@@ -56,19 +56,15 @@ typedef struct {
     bool activo;
     int tipo;
     int sentido;
-    double ultimoDisparo;
+    municion listaBalas[MAX_BALAS_EN];
 } enemigos;
 
     enemigos listaEnemigos[15];
-    municion listaBalas[20];
-    personaje jugador;
     bool tieneLlave = false;
     bool cofreAbierto = false;
     bool portalActivo = false;
-    char mapa[ALTO][ANCHO];
     bool redibujar = true;
     bool salir = false;
-    enemigos enemigo;
     ALLEGRO_BITMAP *spriteJugador = NULL;
     ALLEGRO_BITMAP *spriteEnemigo = NULL;
     ALLEGRO_BITMAP *spritePared = NULL;
@@ -80,18 +76,19 @@ typedef struct {
     ALLEGRO_BITMAP *spriteCorazon = NULL;
     ALLEGRO_BITMAP *spriteMedioCorazon = NULL;
 
-void cargarMapa(char mapa[ALTO][ANCHO]);
+void cargarMapa(char mapa[ALTO][ANCHO], personaje *player);
 void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, float nuevaY);
 void dibujarMapa(char mapa[ALTO][ANCHO]);
 void dibujarVida(int vida);
-void reiniciarJuego(char mapa[ALTO][ANCHO]);
+void reiniciarJuego(char mapa[ALTO][ANCHO], personaje *player);
 void cargarAssets();
-void moverEnemigos(char mapa[ALTO][ANCHO]);
+void moverEnemigos(char mapa[ALTO][ANCHO], personaje *player);
 bool esColision(char mapa[ALTO][ANCHO], float x, float y, bool esBala);
-void cambiarNivel(char mapa[ALTO][ANCHO], const char* nombreArchivo);
+void cambiarNivel(char mapa[ALTO][ANCHO], const char* nombreArchivo, personaje *player);
 void asignarComportamientos();
 
 int main() {
+    personaje jugador;
     srand(time(NULL));
     if (!al_init()) return -1;
     al_install_keyboard();
@@ -111,7 +108,7 @@ int main() {
     al_register_event_source(queue, al_get_timer_event_source(timer));
 
     char mapa[ALTO][ANCHO];
-    cargarMapa(mapa);
+    cargarMapa(mapa, &jugador);
     asignarComportamientos();
     al_start_timer(timer);
 
@@ -141,7 +138,6 @@ int main() {
 
             redibujar = true;
             ALLEGRO_KEYBOARD_STATE teclado;
-            printf("pos x: %f - pos y:%f\n", jugador.X, jugador.Y);
             al_get_keyboard_state(&teclado);
 
             float nuevaX = jugador.X, nuevaY = jugador.Y;
@@ -163,14 +159,14 @@ int main() {
             }
             
             colision(mapa, &jugador.X, &jugador.Y, nuevaX, nuevaY);
-            moverEnemigos(mapa);
+            moverEnemigos(mapa, &jugador);
             int col = (int)((jugador.X + 25) / 50.0);
             int fil = (int)((jugador.Y + 25) / 50.0);
             char objeto = mapa[fil][col];
-            if(mapa[col][fil] == 'B'){
-                        jugador.balas += 3;
-                        mapa[col][fil] = ' ';
-                    }
+            if(mapa[fil][col] == 'B'){
+                jugador.balas += 3;
+                mapa[fil][col] = ' ';
+            }
             if (objeto == 'K') { 
                 tieneLlave = true;
                 mapa[fil][col] = ' '; 
@@ -182,7 +178,7 @@ int main() {
             }
             else if (objeto == 'P' && portalActivo) {
                 printf("¡Cambiando de nivel!\n");
-                cambiarNivel(mapa, "mapa3.txt");
+                cambiarNivel(mapa, "mapa3.txt", &jugador);
             }
             for (int i = 0; i < 15; i++) {
                 if (listaEnemigos[i].activo) {
@@ -199,7 +195,7 @@ int main() {
                 
                             if (jugador.vida <= 0) {
                                 printf("Game Over\n");
-                                reiniciarJuego(mapa);
+                                reiniciarJuego(mapa, &jugador);
                             }
                         }
                     }
@@ -208,18 +204,18 @@ int main() {
 
             // Mover y colisionar balas
             for (int i = 0; i < 10; i++) {
-                if (misBalas[i].activa) {
-                    misBalas[i].X += misBalas[i].velX;
-                    misBalas[i].Y += misBalas[i].velY;
-                    if (esColision(mapa, misBalas[i].X, misBalas[i].Y, true)) misBalas[i].activa = false;
+                if (jugador.listaBalas[i].activa) {
+                    jugador.listaBalas[i].X += jugador.listaBalas[i].velX;
+                    jugador.listaBalas[i].Y += jugador.listaBalas[i].velY;
+                    if (esColision(mapa, jugador.listaBalas[i].X, jugador.listaBalas[i].Y, true)) jugador.listaBalas[i].activa = false;
                     else {
                         for (int j = 0; j < MAX_ENEMIGOS; j++) {
                             if (listaEnemigos[j].activo) {
-                                float dx = misBalas[i].X - (listaEnemigos[j].X + 25);
-                                float dy = misBalas[i].Y - (listaEnemigos[j].Y + 25);
+                                float dx = jugador.listaBalas[i].X - (listaEnemigos[j].X + 25);
+                                float dy = jugador.listaBalas[i].Y - (listaEnemigos[j].Y + 25);
                                 if ((dx*dx + dy*dy) < 900) {
                                     listaEnemigos[j].activo = false;
-                                    misBalas[i].activa = false;
+                                    jugador.listaBalas[i].activa = false;
                                 }
                             }
                         }
@@ -236,11 +232,11 @@ int main() {
         if (evento.type == ALLEGRO_EVENT_KEY_DOWN && evento.keyboard.keycode == ALLEGRO_KEY_SPACE) {
             if (jugador.balas > 0) {
                 for(int i = 0; i < 10; i++) {
-                    if(!misBalas[i].activa) {
-                        misBalas[i].X = jugador.X + 25; misBalas[i].Y = jugador.Y + 25;
-                        misBalas[i].activa = true;
-                        misBalas[i].velX = (jugador.direccion == 2) ? 10 : (jugador.direccion == 1) ? -10 : 0;
-                        misBalas[i].velY = (jugador.direccion == 0) ? 10 : (jugador.direccion == 3) ? -10 : 0;
+                    if(!jugador.listaBalas[i].activa) {
+                        jugador.listaBalas[i].X = jugador.X + 25; jugador.listaBalas[i].Y = jugador.Y + 25;
+                        jugador.listaBalas[i].activa = true;
+                        jugador.listaBalas[i].velX = (jugador.direccion == 2) ? 10 : (jugador.direccion == 1) ? -10 : 0;
+                        jugador.listaBalas[i].velY = (jugador.direccion == 0) ? 10 : (jugador.direccion == 3) ? -10 : 0;
                         jugador.balas--; break;
                     }
                 }
@@ -253,11 +249,7 @@ int main() {
             al_clear_to_color(al_map_rgb(0, 0, 0));
             al_draw_bitmap(fondoCompleto, 0, 0, 0);
             dibujarMapa(mapa);
-            for (int i = 0; i < 20; i++) {
-                if (listaBalas[i].activa) {
-                    al_draw_filled_circle(listaBalas[i].X + 25, listaBalas[i].Y + 25, 8, al_map_rgb(0, 0, 0));
-                }
-            }
+           
 
             if (spriteJugador){
                 al_draw_scaled_bitmap(spriteJugador, 0, 0, 50, 50, jugador.X, jugador.Y, 50, 50, 0);
@@ -268,8 +260,8 @@ int main() {
                 }
             }
             for (int i = 0; i < 10; i++) {
-                if (misBalas[i].activa) {
-                    al_draw_filled_circle(misBalas[i].X, misBalas[i].Y, 5, al_map_rgb(0, 0, 0));
+                if (jugador.listaBalas[i].activa) {
+                    al_draw_filled_circle(jugador.listaBalas[i].X, jugador.listaBalas[i].Y, 5, al_map_rgb(0, 255, 0));
                 }
             }
             dibujarVida(jugador.vida);
@@ -291,7 +283,7 @@ int main() {
 }
 
 //INGRESAR COMO PARAMETROS LAS VARIABLES DE LOS PERSONAJES
-void cargarMapa(char mapa[ALTO][ANCHO]) {
+void cargarMapa(char mapa[ALTO][ANCHO], personaje *player) {
     int indice = 0;
     int k = 0;
     FILE *f = fopen("mapa2 copy.txt", "r");
@@ -300,8 +292,8 @@ void cargarMapa(char mapa[ALTO][ANCHO]) {
         for (int j = 0; j < ANCHO; j++) {
             fscanf(f, " %c", &mapa[i][j]);
             if (mapa[i][j] == '@') {
-                jugador.X = j * TAMANO_CUADRADO;
-                jugador.Y = i * TAMANO_CUADRADO; 
+               player->X = j * TAMANO_CUADRADO;
+               player->Y = i * TAMANO_CUADRADO;
             }
             if (mapa[i][j] == 'E' && indice < 15) {
             listaEnemigos[indice].X = j * TAMANO_CUADRADO;
@@ -310,25 +302,17 @@ void cargarMapa(char mapa[ALTO][ANCHO]) {
             listaEnemigos[indice].activo = true;
             indice++;
             }
-            if (mapa[i][j] == 'B') {
-            listaBalas[k].X = j * TAMANO_CUADRADO;
-            listaBalas[k].Y = i * TAMANO_CUADRADO;
-            listaBalas[k].activa = true;
-            k++;
-            }
-
-            float px = j * 50.0; 
-            float py = i * 50.0;
+            
         }
     }
     fclose(f);
 }
 
-void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, float nuevaY) {
+void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, float nuevaY) {      //VER
 
     float size = TAMANO_CUADRADO;
     if (nuevaX != *posX) {
-        int direccion = (nuevaX > *posX) ? 1 : -1;//VER
+        int direccion = (nuevaX > *posX) ? 1 : -1;
         float intentoX = *posX;
         while (intentoX != nuevaX) {
             intentoX += direccion;
@@ -376,13 +360,14 @@ void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, fl
     }
 }
 
-void moverEnemigos(char mapa[ALTO][ANCHO]) {
+void moverEnemigos(char mapa[ALTO][ANCHO], personaje *player) {
     for (int i = 0; i < 12; i++) {
-        if (!listaEnemigos[i].activo) continue;
+        if (!listaEnemigos[i].activo) 
+        continue;
 
         if (listaEnemigos[i].tipo == 0) {
-    float dx = (jugador.X > listaEnemigos[i].X) ? 1.0 : (jugador.X < listaEnemigos[i].X ? -1.0 : 0.0);
-    float dy = (jugador.Y > listaEnemigos[i].Y) ? 1.0 : (jugador.Y < listaEnemigos[i].Y ? -1.0 : 0.0);
+    float dx = (player->X > listaEnemigos[i].X) ? 1.0 : (player->X < listaEnemigos[i].X ? -1.0 : 0.0);
+    float dy = (player->Y > listaEnemigos[i].Y) ? 1.0 : (player->Y < listaEnemigos[i].Y ? -1.0 : 0.0);
 
     if (!esColision(mapa, listaEnemigos[i].X + dx, listaEnemigos[i].Y + dy, false)) {
             listaEnemigos[i].X += dx;
@@ -436,6 +421,8 @@ void dibujarMapa(char mapa[ALTO][ANCHO]) {
                 break;
                 case 'P': if (portalActivo && spritePortal) al_draw_bitmap(spritePortal, px, py, 0); 
                 break;
+                case 'B': al_draw_filled_circle(px, py, 5, al_map_rgb(0, 255, 0));
+
             }
         }
     }
@@ -458,10 +445,10 @@ void dibujarVida(int vida) {
     }
 }
 
-void reiniciarJuego(char mapa[ALTO][ANCHO]) {
-    jugador.vida = VIDA_MAXIMA;
-    jugador.balas = 9;
-    cargarMapa(mapa);
+void reiniciarJuego(char mapa[ALTO][ANCHO], personaje *player) {
+    player->vida = VIDA_MAXIMA;
+    player->balas = 6;
+    cargarMapa(mapa, player);
     al_rest(0.5); 
     portalActivo = false;
 }
@@ -477,7 +464,7 @@ void cargarAssets() {
     spriteLlave = al_load_bitmap("llave.png");
     spriteCofre = al_load_bitmap("cofre.png");
     spritePortal = al_load_bitmap("portal.png");
-    //spriteBala = al_load_bitmap("bala.png");
+    spriteBala = al_load_bitmap("bala.png");
     spriteCorazon = al_load_bitmap("corazon.png");
     spriteMedioCorazon = al_load_bitmap("mediocorazon.png");
 }
@@ -551,13 +538,13 @@ bool esColision(char mapa[ALTO][ANCHO], float x, float y, bool esBala) {
     return false;
 }
 
-void cambiarNivel(char mapa[ALTO][ANCHO], const char* nombreArchivo) {
+void cambiarNivel(char mapa[ALTO][ANCHO], const char* nombreArchivo, personaje *player) {
     int indice = 0;
     int k = 0;
     for(int i = 0; i < 15; i++) 
     listaEnemigos[i].activo = false;
     for(int i = 0; i < 20; i++) 
-    listaBalas[i].activa = false;
+    player->listaBalas[i].activa = false;
     
     FILE *f = fopen(nombreArchivo, "r");
     if (!f) { 
@@ -568,8 +555,8 @@ void cambiarNivel(char mapa[ALTO][ANCHO], const char* nombreArchivo) {
         for (int j = 0; j < ANCHO; j++) {
             fscanf(f, " %c", &mapa[i][j]);
             if (mapa[i][j] == '@') { 
-                jugador.X = j * 50; 
-                jugador.Y = i * 50; 
+                player->X = j * 50; 
+                player->Y = i * 50; 
                 mapa[i][j] = '.'; 
             }
             if (mapa[i][j] == 'E' && indice < 15) {
@@ -578,13 +565,6 @@ void cambiarNivel(char mapa[ALTO][ANCHO], const char* nombreArchivo) {
             listaEnemigos[indice].velocidad = 3.0;
             listaEnemigos[indice].activo = true;
             indice++;
-            mapa[i][j] = '.';
-            }
-            if (mapa[i][j] == 'B') {
-            listaBalas[k].X = j * TAMANO_CUADRADO;
-            listaBalas[k].Y = i * TAMANO_CUADRADO;
-            listaBalas[k].activa = true;
-            k++;
             mapa[i][j] = '.';
             }
         }
