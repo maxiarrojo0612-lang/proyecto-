@@ -1,0 +1,1 @@
+negro: ./src/bitmap_draw.c:140: al_draw_tinted_bitmap: Assertion `bitmap' failed.
