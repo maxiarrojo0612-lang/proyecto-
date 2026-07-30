@@ -1,0 +1,10 @@
+maxi 1400
+maxi 1300
+maxi 1000
+maxi 900
+maxi 800
+maxi 700
+maxi 700
+maxi 300
+maxi 300
+maxi 300
