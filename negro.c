@@ -662,11 +662,11 @@ void actualizarPuntaje(struct personaje *player, EventoPuntaje evento) {
             player->puntos += 25;
             break;
 
-        case EVENTO_PASAR_NIVEL:
+        case EVENTO_PASAR_NIVEL://te falta usar este
             player->puntos += 500;
             break;
 
-        case EVENTO_RECIBIR_DANIO:
+        case EVENTO_RECIBIR_DANIO://este tambien
             player->puntos -= 50;
             
             if (player->puntos < 0) {
