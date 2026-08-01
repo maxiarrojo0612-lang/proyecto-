@@ -27,15 +27,20 @@
 #define RADIO_EXPLOSION 1
 #define MAX_TOP 10
 #define TOTAL_NIVELES 6
+#define LARG_NOMBRE 10
+#define MAX_OBJ 7
 
-//agregar (x2 y monedas)...
-//sonido......
+//agregar (x2)...............2
+//sonido.............3
 //animación
-//niveles...................
-//diferentes puntos para fantasmas
-//item de rango de balas
-//limpiar inventario
-//pausa
+//item de rango de balas...............2
+//pausa...................2
+//pantalla de win.............1
+//que solo se guarde el puntaje cuando ganas.........1
+//sprite de jugador
+//0 1 1 0
+//pulsa la palanca amarilla y verde para activar el portal
+
 
 typedef enum {
     ESTADO_MENU,
@@ -43,13 +48,15 @@ typedef enum {
     ESTADO_PUNTAJE,
     ESTADO_JUGANDO,
     ESTADO_GAME_OVER,
+    ESTADO_WIN,
     ESTADO_INGRESAR_NOMBRE,
 } EstadoJuego;
 typedef enum {
     EVENTO_MATAR_ENEMIGO,
     EVENTO_DESTRUIR_PARED,
     EVENTO_PASAR_NIVEL,
-    EVENTO_RECIBIR_DANIO
+    EVENTO_RECIBIR_DANIO,
+    EVENTO_COIN,
 } EventoPuntaje;
 
 typedef struct {
@@ -69,11 +76,11 @@ typedef struct {
 } municion;
 
 typedef struct {
-    Objeto items[10];
+    Objeto items[MAX_OBJ];
 } mochila;
 
 typedef struct personaje {
-    char nombreIngresado[10];
+    char nombreIngresado[LARG_NOMBRE];
     int vida;
     int balas;
     float X, Y;
@@ -109,7 +116,7 @@ typedef struct {
     int nivelActual;
 } Juego;
 typedef struct {
-    char nombre[16];
+    char nombre[LARG_NOMBRE];
     int puntos;
 } RegistroPuntaje;
 
@@ -122,6 +129,7 @@ ALLEGRO_BITMAP *spriteLlave = NULL;
 ALLEGRO_BITMAP *spriteCofre = NULL;
 ALLEGRO_BITMAP *spritePortal = NULL;
 ALLEGRO_BITMAP *spriteBala = NULL;
+ALLEGRO_BITMAP *spriteCoin = NULL;
 ALLEGRO_BITMAP *spriteBalaPJ = NULL;
 ALLEGRO_BITMAP *spriteCorazon = NULL;
 ALLEGRO_BITMAP *spriteMedioCorazon = NULL;
@@ -155,8 +163,6 @@ void asignarComportamientos( Juego *j);
 void dispararPJ(char mapa[ALTO][ANCHO], Juego *j);
 int buscarSlotLibre(personaje *p);
 void limpiarInventario(personaje *p);
-void dibujarInventario(personaje *p, ALLEGRO_FONT *fuente);
-bool guardarEnInventario(personaje *p, char *nombre, int consumir);
 bool tieneObjeto(personaje *p, char *nombre);
 
 int main() {
@@ -208,7 +214,6 @@ int main() {
     al_register_event_source(queue, al_get_keyboard_event_source());
     al_register_event_source(queue, al_get_timer_event_source(timer));
 
-    miJuego.nivelActual = 1;
     cargarNivelActual(mapa, &miJuego);
     asignarComportamientos(&miJuego);
     al_start_timer(timer);
@@ -228,18 +233,16 @@ int main() {
     miJuego.player.vida = 6;
     miJuego.player.balas = 6;
     miJuego.player.rangoDisparo = RANGO_DISPARO;
-    EstadoJuego estadoActual = ESTADO_MENU;
     int opcionSeleccionada = 0;
 
     while (!salir) {
         ALLEGRO_EVENT evento;
         al_wait_for_event(queue, &evento);
 
-        // 1. EVENTO TEMPORIZADOR (LÓGICA DEL JUEGO)
         if (evento.type == ALLEGRO_EVENT_TIMER) {
             redibujar = true;
 
-            if (estadoActual == ESTADO_JUGANDO) {
+            if (miJuego.estadoActual == ESTADO_JUGANDO) {
                 ALLEGRO_KEYBOARD_STATE teclado;
                 al_get_keyboard_state(&teclado);
 
@@ -270,7 +273,7 @@ int main() {
                 danhopinches(mapa, &miJuego);
 
                 if (miJuego.player.vida <= 0) {
-                    estadoActual = ESTADO_GAME_OVER;
+                    miJuego.estadoActual = ESTADO_GAME_OVER;
                     miJuego.player.lenNombre = 0;
                     miJuego.player.nombreIngresado[0] = '\0';
                 }
@@ -279,7 +282,7 @@ int main() {
         
         //menu y demas
         else if (evento.type == ALLEGRO_EVENT_KEY_DOWN) {
-            if (estadoActual == ESTADO_MENU) {
+            if (miJuego.estadoActual == ESTADO_MENU) {
                 if (evento.keyboard.keycode == ALLEGRO_KEY_UP) {
                     opcionSeleccionada--;
                     if (opcionSeleccionada < 0) 
@@ -296,39 +299,48 @@ int main() {
                         miJuego.nivelActual = 1;
                         asignarComportamientos(&miJuego);
                         cargarNivelActual(mapa, &miJuego);
-                        estadoActual = ESTADO_JUGANDO;
+                        miJuego.estadoActual = ESTADO_JUGANDO;
                     }
                     else if (opcionSeleccionada == 1) {
-                        estadoActual = ESTADO_CONTROLES;
+                        miJuego.estadoActual = ESTADO_CONTROLES;
                     }
                     else if (opcionSeleccionada == 2) {
                         cargarPuntajes(top);
-                        estadoActual = ESTADO_PUNTAJE;
+                        miJuego.estadoActual = ESTADO_PUNTAJE;
                     }
                     else if (opcionSeleccionada == 3) {
                         salir = true;
                     }
                 }
             }
-            else if (estadoActual == ESTADO_CONTROLES || estadoActual == ESTADO_PUNTAJE) {
+            else if (miJuego.estadoActual == ESTADO_CONTROLES || miJuego.estadoActual == ESTADO_PUNTAJE) {
                 if (evento.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
-                    estadoActual = ESTADO_MENU;
+                    miJuego.estadoActual = ESTADO_MENU;
                 }
             }
-            else if (estadoActual == ESTADO_JUGANDO) {
+            else if (miJuego.estadoActual == ESTADO_JUGANDO) {
                 if (evento.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
-                    estadoActual = ESTADO_MENU; // Pausa
-                    limpiarInventario(&miJuego.player); // Limpiar inventario al pausar
+                    miJuego.estadoActual = ESTADO_MENU; // Pausa
                 }
                 if (evento.keyboard.keycode == ALLEGRO_KEY_E) {
                     int col = (int)((miJuego.player.X + 25) / 50.0);
                     int fil = (int)((miJuego.player.Y + 25) / 50.0);
-                    if (mapa[fil][col] == 'B') {
-                        miObjeto.activada = true;
-                        miObjeto.contador = TIEMPO_EXPLOSION;
-                        miObjeto.X = col; 
-                        miObjeto.Y = fil;
-                        mapa[fil][col] = 'b';
+                    if (tieneObjeto(&miJuego.player, "Bomba")) {
+                        if (mapa[fil][col] == '.'){
+
+                            mapa[fil][col] = 'B';
+                            miObjeto.activada = true;
+                            miObjeto.contador = TIEMPO_EXPLOSION;
+                            miObjeto.X = col; 
+                            miObjeto.Y = fil;
+                            mapa[fil][col] = 'b';
+                        }
+                        for (int i = 0; i < 10; i++) {
+                            if (strcmp(miJuego.player.bag.items[i].nombre, "Bomba") == 0) {
+                                miJuego.player.bag.items[i].nombre[0] = '\0';
+                                break;
+                            }
+                        }
                     }
                 }
                 if (evento.keyboard.keycode == ALLEGRO_KEY_SPACE) {
@@ -367,9 +379,9 @@ int main() {
                 }
             }
         }
-        //pantalla game over
+        //pantalla game over y win
         else if (evento.type == ALLEGRO_EVENT_KEY_CHAR) {
-            if (estadoActual == ESTADO_GAME_OVER) {
+            if (miJuego.estadoActual == ESTADO_GAME_OVER || miJuego.estadoActual == ESTADO_WIN) {
 
                 if (evento.keyboard.keycode == ALLEGRO_KEY_ENTER || evento.keyboard.keycode == ALLEGRO_KEY_PAD_ENTER) {
                     if (miJuego.player.lenNombre > 0) {
@@ -377,14 +389,14 @@ int main() {
                         reiniciarJuego(mapa, &miJuego);
                         miJuego.player.vida = 6;
                         miJuego.player.puntos = 0;
-                        estadoActual = ESTADO_MENU;
+                        miJuego.estadoActual = ESTADO_MENU;
                     }
                 }
                 else if (evento.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
                     reiniciarJuego(mapa, &miJuego);
                     miJuego.player.vida = 6;
                     miJuego.player.puntos = 0;
-                    estadoActual = ESTADO_MENU;
+                    miJuego.estadoActual = ESTADO_MENU;
                 }
                 else if (evento.keyboard.keycode == ALLEGRO_KEY_BACKSPACE && miJuego.player.lenNombre > 0) {
                     miJuego.player.lenNombre--;
@@ -408,7 +420,7 @@ int main() {
             redibujar = false;
             al_clear_to_color(al_map_rgb(0, 0, 0));
 
-            if (estadoActual == ESTADO_MENU) {
+            if (miJuego.estadoActual == ESTADO_MENU) {
                 al_draw_text(fuenteTitulo, al_map_rgb(255, 255, 255), 960, 100, ALLEGRO_ALIGN_CENTER, "Explorer");
 
                 ALLEGRO_COLOR colorJugar, colorControles, colorPuntaje, colorSalir;
@@ -446,14 +458,14 @@ int main() {
                 al_draw_text(fuenteMenu, colorPuntaje, 960, 420, ALLEGRO_ALIGN_CENTER, "PUNTAJE");
                 al_draw_text(fuenteMenu, colorSalir, 960, 470, ALLEGRO_ALIGN_CENTER, "SALIR");
             }
-            else if (estadoActual == ESTADO_CONTROLES) {
+            else if (miJuego.estadoActual == ESTADO_CONTROLES) {
                 al_draw_text(fuenteTitulo, al_map_rgb(255, 255, 255), 960, 100, ALLEGRO_ALIGN_CENTER, "CONTROLES");
                 al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 300, ALLEGRO_ALIGN_CENTER, "WASD: Moverse");
                 al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 340, ALLEGRO_ALIGN_CENTER, "ESPACIO: Disparar");
                 al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 380, ALLEGRO_ALIGN_CENTER, "E: Activar bomba");
                 al_draw_text(fuenteMenu, al_map_rgb(255, 255, 0), 960, 900, ALLEGRO_ALIGN_CENTER, "Presiona ESC para volver");
             }
-            else if (estadoActual == ESTADO_PUNTAJE) {
+            else if (miJuego.estadoActual == ESTADO_PUNTAJE) {
                 al_draw_text(fuenteTitulo, al_map_rgb(255, 255, 0), 960, 50, ALLEGRO_ALIGN_CENTER, "MEJORES PUNTAJES");
 
                 int posY = 200;
@@ -466,7 +478,7 @@ int main() {
 
                 al_draw_text(fuenteMenu, al_map_rgb(150, 150, 150), 960, 900, ALLEGRO_ALIGN_CENTER, "Presiona ESC para volver");
             }
-            else if (estadoActual == ESTADO_GAME_OVER) {
+            else if (miJuego.estadoActual == ESTADO_GAME_OVER) {
                 al_draw_text(fuenteTitulo, al_map_rgb(255, 0, 0), 960, 150, ALLEGRO_ALIGN_CENTER, "GAME OVER");
                 
                 char puntosTxt[32];
@@ -485,9 +497,28 @@ int main() {
                 
                 al_draw_text(fuenteMenu, al_map_rgb(150, 150, 150), 960, 540, ALLEGRO_ALIGN_CENTER, "Presiona ENTER para guardar | ESC para omitir");
             }
+            else if (miJuego.estadoActual == ESTADO_WIN){
+                al_draw_text(fuenteTitulo, al_map_rgb(255, 0, 0), 960, 150, ALLEGRO_ALIGN_CENTER, "¡FELICIDADES GANASTE!");
+
+                char puntosTxt[32];
+                snprintf(puntosTxt, sizeof(puntosTxt), "Puntaje Final: %d", miJuego.player.puntos);
+                al_draw_text(fuenteMenu, al_map_rgb(255, 255, 255), 960, 330, ALLEGRO_ALIGN_CENTER, puntosTxt);
+
+                al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 410, ALLEGRO_ALIGN_CENTER, "Ingresa tu Nombre:");
+
+                if (miJuego.player.lenNombre == 0) {
+                    textoMostrar = "";
+                } 
+                else {
+                    textoMostrar = miJuego.player.nombreIngresado;
+                }
+                al_draw_text(fuenteMenu, al_map_rgb(0, 255, 255), 960, 460, ALLEGRO_ALIGN_CENTER, textoMostrar);
+
+                al_draw_text(fuenteMenu, al_map_rgb(150, 150, 150), 960, 540, ALLEGRO_ALIGN_CENTER, "Presiona ENTER para guardar | ESC para omitir");
+            }
 
             //dibujar mapa
-            else if (estadoActual == ESTADO_JUGANDO) {
+            else if (miJuego.estadoActual == ESTADO_JUGANDO) {
                 al_draw_bitmap(fondoCompleto, 0, 0, 0);
                 dibujarMapa(mapa, &miJuego);
                 actualizarBalasEnemigos(mapa, &miJuego);
@@ -495,7 +526,7 @@ int main() {
 
                 //dibujar jugador
                 if (spriteJugador) {
-                    al_draw_scaled_bitmap(spriteJugador, 0, 0, 50, 50, miJuego.player.X, miJuego.player.Y, 60, 50, 0);
+                    al_draw_scaled_bitmap(spriteJugador, 0, 0, 50, 50, miJuego.player.X, miJuego.player.Y, 50, 50, 0);
                 } 
 
                 // Dibujar balas de enemigos
@@ -566,6 +597,7 @@ int main() {
     al_destroy_bitmap(spriteSuper_En);
     al_destroy_bitmap(spriteFantasma);
     al_destroy_bitmap(spritePared);
+    al_destroy_bitmap(spriteCoin);
     al_destroy_bitmap(spritefondo);
     al_destroy_bitmap(spriteBalaPJ);
     al_destroy_bitmap(spriteBala);
@@ -605,7 +637,7 @@ void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, fl
             bool colision = false;
             for (int y = top; y <= bottom; y++) {
                 for (int x = left; x <= right; x++) {
-                    if (x < 0 || x >= ANCHO || y < 0 || y >= ALTO || mapa[y][x] == '#') {
+                    if (x < 0 || x >= ANCHO || y < 0 || y >= ALTO || mapa[y][x] == '#'|| mapa[y][x] == '*') {
                         colision = true;
                     }
                 }
@@ -637,7 +669,7 @@ void colision(char mapa[ALTO][ANCHO], float *posX, float *posY, float nuevaX, fl
 
             for (int y = top; y <= bottom; y++) {
                 for (int x = left; x <= right; x++) {
-                    if (x < 0 || x >= ANCHO || y < 0 || y >= ALTO || mapa[y][x] == '#') {
+                    if (x < 0 || x >= ANCHO || y < 0 || y >= ALTO || mapa[y][x] == '#'|| mapa[y][x] == '*') {
                         colision = true;
                     }
                 }
@@ -662,11 +694,14 @@ void actualizarPuntaje(struct personaje *player, EventoPuntaje evento) {
             player->puntos += 25;
             break;
 
-        case EVENTO_PASAR_NIVEL://te falta usar este
-            player->puntos += 500;
+        case EVENTO_PASAR_NIVEL:
+            player->puntos += 200;
             break;
 
-        case EVENTO_RECIBIR_DANIO://este tambien
+        case EVENTO_COIN:
+            player->puntos += 100;
+            break;
+        case EVENTO_RECIBIR_DANIO:
             player->puntos -= 50;
             
             if (player->puntos < 0) {
@@ -729,6 +764,7 @@ void dispararPJ(char mapa[ALTO][ANCHO], Juego *j) {
                             if ((dx*dx + dy*dy) < 900) {
                                 j->listaEnemigos[b].activo = false;
                                 actualizarPuntaje(&j->player, EVENTO_MATAR_ENEMIGO);
+
                                 j->player.listaBalas[i].activa = false;
                             }
                         }
@@ -739,22 +775,24 @@ void dispararPJ(char mapa[ALTO][ANCHO], Juego *j) {
     }
 }
 void cargarPuntajes(RegistroPuntaje top[]) {
+    int i;
     FILE *archivo = fopen("puntajes.txt", "r");
     
     if (!archivo) {
         archivo = fopen("puntajes.txt", "w");
-        for (int i = 0; i < MAX_TOP; i++) {
+        for (i = 0; i < MAX_TOP; i++) {
             snprintf(top[i].nombre, sizeof(top[i].nombre), "---");
             top[i].puntos = 0;
             if (archivo) {
                 fprintf(archivo, "%s %d\n", top[i].nombre, top[i].puntos);
             }
         }
-        if (archivo) fclose(archivo);
+        if (archivo) 
+            fclose(archivo);
         return;
     }
 
-    for (int i = 0; i < MAX_TOP; i++) {
+    for (i = 0; i < MAX_TOP; i++) {
         if (fscanf(archivo, "%s %d", top[i].nombre, &top[i].puntos) != 2) {
             snprintf(top[i].nombre, sizeof(top[i].nombre), "---");
             top[i].puntos = 0;
@@ -764,14 +802,16 @@ void cargarPuntajes(RegistroPuntaje top[]) {
 }
 
 void guardarNuevoPuntaje(int puntosActuales, const char *nombreJugador) {
+    int j;
+    int i;
     RegistroPuntaje top[MAX_TOP + 1];
     cargarPuntajes(top);
     
     snprintf(top[MAX_TOP].nombre, sizeof(top[MAX_TOP].nombre), "%s", nombreJugador);
     top[MAX_TOP].puntos = puntosActuales;
 
-    for (int i = 0; i < MAX_TOP; i++) {
-        for (int j = i + 1; j <= MAX_TOP; j++) {
+    for (i = 0; i < MAX_TOP; i++) {
+        for (j = i + 1; j <= MAX_TOP; j++) {
             if (top[j].puntos > top[i].puntos) {
                 RegistroPuntaje aux = top[i];
                 top[i] = top[j];
@@ -782,7 +822,7 @@ void guardarNuevoPuntaje(int puntosActuales, const char *nombreJugador) {
 
     FILE *archivo = fopen("puntajes.txt", "w");
     if (archivo) {
-        for (int i = 0; i < MAX_TOP; i++) {
+        for (i = 0; i < MAX_TOP; i++) {
             fprintf(archivo, "%s %d\n", top[i].nombre, top[i].puntos);
         }
         fclose(archivo);
@@ -892,27 +932,57 @@ void dibujarMapa(char mapa[ALTO][ANCHO], Juego *j) {
             py = i * 50.0;
             
             switch(mapa[i][col]) {
-                case '.': if (spritefondo) al_draw_bitmap(spritefondo, px, py, 0); 
+                case '.':
+                    if (spritefondo) 
+                        al_draw_bitmap(spritefondo, px, py, 0); 
                 break;
-                case '#': if (spritePared) al_draw_bitmap(spritePared, px, py, 0); 
+                case '#':
+                    if (spritePared) 
+                        al_draw_bitmap(spritePared, px, py, 0); 
                 break;
-                case 'K': if (spriteLlave) al_draw_bitmap(spriteLlave, px, py, 0); 
+                case '*':
+                    if (spritePared) 
+                        al_draw_bitmap(spritePared, px, py, 0); 
                 break;
-                case 'C': if (spriteCofre) al_draw_bitmap(spriteCofre, px, py, 0); 
+                case 'K':
+                    if (spriteLlave) 
+                        al_draw_bitmap(spriteLlave, px, py, 0); 
                 break;
-                case 'M': if (spriteBalaPJ) al_draw_bitmap(spriteBalaPJ, px, py, 0);
+                case 'C':
+                    if (spriteCofre) 
+                        al_draw_bitmap(spriteCofre, px, py, 0); 
                 break;
-                case 'P': if (spritePortal) al_draw_bitmap(spritePortal, px, py, 0);
+                case 'M':
+                    if (spriteBalaPJ) 
+                    al_draw_bitmap(spriteBalaPJ, px, py, 0);
                 break;
-                case '+': if (spriteCorazon) al_draw_bitmap(spriteCorazon, px, py, 0);
+                case 'P': 
+                    if (spritePortal) 
+                        al_draw_bitmap(spritePortal, px, py, 0);
                 break;
-                case 'B': if (spriteBombaNormal) al_draw_bitmap(spriteBombaNormal, px, py, 0);
+                case '+': 
+                    if (spriteCorazon) 
+                        al_draw_bitmap(spriteCorazon, px, py, 0);
                 break;
-                case 'b': if (spriteBombaActivada) al_draw_bitmap(spriteBombaActivada, px, py, 0);
+                case 'B': 
+                    if (spriteBombaNormal) 
+                        al_draw_bitmap(spriteBombaNormal, px, py, 0);
                 break;
-                case 'o': if (spriteBombaExplotada) al_draw_bitmap(spriteBombaExplotada, px, py, 0);
+                case 'b': 
+                    if (spriteBombaActivada) 
+                        al_draw_bitmap(spriteBombaActivada, px, py, 0);
                 break;
-                case 'p': if (spritePinches) al_draw_bitmap(spritePinches, px, py, 0); 
+                case 'o': 
+                    if (spriteBombaExplotada) 
+                        al_draw_bitmap(spriteBombaExplotada, px, py, 0);
+                break;
+                case 'p': 
+                    if (spritePinches) 
+                        al_draw_bitmap(spritePinches, px, py, 0); 
+                break;
+                case 'c': 
+                    if (spriteCoin) 
+                        al_draw_bitmap(spriteCoin, px, py, 0); 
                 break;
 
             }
@@ -947,7 +1017,6 @@ void consumibles(char mapa[ALTO][ANCHO], Juego *j) {
     int slotPalanca;
     int col = ((j->player.X + 25) / 50.0);
     int fil = ((j->player.Y + 25) / 50.0);
-    char objeto = mapa[fil][col];                         //usas esta variable?
     if (mapa[fil][col] == 'M') {
         j->player.balas += 3;
         mapa[fil][col] = ' ';
@@ -956,49 +1025,54 @@ void consumibles(char mapa[ALTO][ANCHO], Juego *j) {
         j->player.vida += 2;
         mapa[fil][col] = ' ';
     }
+    if (mapa[fil][col] == 'c') {
+        actualizarPuntaje(&j->player, EVENTO_COIN);
+        mapa[fil][col] = ' ';
+    }
     if (mapa[fil][col] == 'K') {
-        for (i = 0; i < 10; i++) {
+        for (i = 0; i < MAX_OBJ; i++) {
             if (j->player.bag.items[i].nombre[0] == '\0') {
-                strcpy(j->player.bag.items[i].nombre, "Llave");//guardas el nombre, con que propósito?
+                strcpy(j->player.bag.items[i].nombre, "Llave");
                 mapa[fil][col] = ' '; 
-                printf("¡Recogiste la llave!\n");
                 break;
+            }
+        }
+    }
+    if (mapa[fil][col] == 'B') {
+        if (!tieneObjeto(&j->player, "Bomba")) {
+
+            for (i = 0; i < MAX_OBJ; i++) {
+                if (j->player.bag.items[i].nombre[0] == '\0') {
+                    strcpy(j->player.bag.items[i].nombre, "Bomba");
+                    mapa[fil][col] = ' '; 
+                    break;
+                }
             }
         }
     }
     if (mapa[fil][col] == 'C') {
         if (tieneObjeto(&j->player, "Llave")) {
-            printf("¡Cofre abierto! Recibes la palanca.\n");
+
             slotPalanca = buscarSlotLibre(&j->player);
             if (slotPalanca != -1) {
                 strcpy(j->player.bag.items[slotPalanca].nombre, "Palanca");
                 j->player.rangoDisparo += 200.0;
-                printf("¡Has abierto el cofre y conseguido una poción! Nuevo rango: %.1f\n", j->player.rangoDisparo);
             }
-            mapa[fil][col] = ' ';
-        } 
-        else {
-            printf("Inventario lleno, no puedes recoger la palanca del cofre.\n");
+
+            mapa[fil][col] = '.';
         }
     } 
-    if (mapa[fil][col] == 'P' && !j->portalActivo) {
-        if (tieneObjeto(&j->player, "Palanca")) {
-            printf("¡Activando portal!\n");
-            j->portalActivo = true;
-            for (i = 0; i < 10; i++) {
+    if (mapa[fil][col] == 'P') {
+        if (!j->portalActivo && tieneObjeto(&j->player, "Palanca")) {
+            for (i = 0; i < MAX_OBJ; i++) {
                 if (strcmp(j->player.bag.items[i].nombre, "Palanca") == 0) {
                     j->player.bag.items[i].nombre[0] = '\0';
                     break;
                 }
             }
-        } 
-        else {
-            printf("Necesitas una palanca.\n");
+            avanzarSiguienteNivel(mapa, j);
+            asignarComportamientos(j);
         }
-    } 
-    else if (mapa[fil][col] == 'P' && j->portalActivo) {
-        avanzarSiguienteNivel(mapa, j);
-        printf("¡El portal está abierto! ¡Pasando de nivel!\n");
     }
 }
 
@@ -1026,7 +1100,12 @@ void actualizarBalasEnemigos(char mapa[ALTO][ANCHO], Juego *j) {
                         j->listaEnemigos[i].listaBalas[b].activa = false;
                         continue;
                     }
-                } else {
+                    if (mapa[fil][col] == '*') {
+                        j->listaEnemigos[i].listaBalas[b].activa = false;
+                        continue;
+                    }
+                } 
+                else {
                     j->listaEnemigos[i].listaBalas[b].activa = false;
                     continue;
                 }
@@ -1117,11 +1196,14 @@ void cargarAssets() {
     if(!spritePinches){
         printf("spritePinches no se pudo cargar\n");
     }
-    spriteSuper_En = al_load_bitmap("super_en.png");
+    spriteSuper_En = al_load_bitmap("super_En.png");
     if(!spriteSuper_En){
         printf("spriteSuper_En no se pudo cargar\n");
     }
-
+    spriteCoin = al_load_bitmap("coin.png");
+    if(!spriteCoin){
+        printf("spriteCoin no se pudo cargar\n");
+    }
 }
 
 void danhoexplosion(char mapa[ALTO][ANCHO], Objeto *o, Juego *j) {
@@ -1145,7 +1227,7 @@ void danhoexplosion(char mapa[ALTO][ANCHO], Objeto *o, Juego *j) {
                 for (c = o->X - RADIO_EXPLOSION; c <= o->X + RADIO_EXPLOSION; c++) {
                     if (f >= 0 && f < ALTO && c >= 0 && c < ANCHO) {
                         if (mapa[f][c] == '#') {
-                            actualizarPuntaje(&j->player, EVENTO_DESTRUIR_PARED);   //si destruye bloques gana puntaje por matar enemigos?
+                            actualizarPuntaje(&j->player, EVENTO_DESTRUIR_PARED);
                             mapa[f][c] = '.';
                         }    
                         if (f == o->Y && c == o->X) {
@@ -1160,7 +1242,7 @@ void danhoexplosion(char mapa[ALTO][ANCHO], Objeto *o, Juego *j) {
             distanciaY = j->player.Y - bombaPixelY;
 
             if (distanciaX >= -50 && distanciaX <= 50 && distanciaY >= -50 && distanciaY <= 50) {
-                j->player.vida = 0;     //que no te mate de un golpe
+                j->player.vida -= 3;
             }
             for (i = 0; i < MAX_ENEMIGOS; i++) {
 
@@ -1169,6 +1251,8 @@ void danhoexplosion(char mapa[ALTO][ANCHO], Objeto *o, Juego *j) {
                     distanciaEnemigoX = j->listaEnemigos[i].X - bombaPixelX;
                     distanciaEnemigoY = j->listaEnemigos[i].Y - bombaPixelY;            
                     if (distanciaEnemigoX >= -rangoPixel && distanciaEnemigoX <= rangoPixel && distanciaEnemigoY >= -rangoPixel && distanciaEnemigoY <= rangoPixel) {
+                        actualizarPuntaje(&j->player, EVENTO_MATAR_ENEMIGO);
+
                         j->listaEnemigos[i].activo = false;
                     }
                 }
@@ -1193,6 +1277,7 @@ void danhopinches(char mapa[ALTO][ANCHO], Juego *j) {
       
             if (j->player.cooldownPinches == 0) {
                 j->player.vida -= 1;
+                actualizarPuntaje(&j->player, EVENTO_RECIBIR_DANIO);
                 j->player.cooldownPinches = 60;
             }
         }
@@ -1250,7 +1335,6 @@ bool esColision(char mapa[ALTO][ANCHO], float x, float y, bool esBala, Juego *j)
     float margenAbajo;
     float tamañoImagen;
     
-
     if (esBala) {
         col = (x / 50.0); 
         fil = (y / 50.0);
@@ -1259,7 +1343,7 @@ bool esColision(char mapa[ALTO][ANCHO], float x, float y, bool esBala, Juego *j)
         }
         
         celda = mapa[fil][col];
-        if (celda == '#' || (celda == 'C' && !j->cofreAbierto)) {
+        if (celda == '#' || celda == '*' || (celda == 'C' && !j->cofreAbierto)) {
             return true;
         }
         return false;
@@ -1283,13 +1367,14 @@ bool esColision(char mapa[ALTO][ANCHO], float x, float y, bool esBala, Juego *j)
 
             celda = mapa[fil][col];
             
-            if (celda == '#' || (celda == 'C' && !j->cofreAbierto)) {
+            if (celda == '#' || celda == '*' || (celda == 'C' && !j->cofreAbierto)) {
                 return true;
             }
         }
     }
     return false;
 }
+
 void danhoEnemigos(Juego *j) {
     int e;
     bool hayColision;
@@ -1304,6 +1389,7 @@ void danhoEnemigos(Juego *j) {
 
             if (hayColision && j->player.cooldownPinches == 0) {
                 j->player.vida -= 1;
+                actualizarPuntaje(&j->player, EVENTO_RECIBIR_DANIO);
                 j->player.cooldownPinches = 90;                
                 break; 
             }
@@ -1316,13 +1402,13 @@ void dibujarInterfaz(personaje *p, int balas, ALLEGRO_FONT *fuente) {
     int inicioX = 150;
     int inicioY = 10;
 
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < MAX_OBJ; i++) {
         int posX = inicioX + (i * 60);
         al_draw_filled_rectangle(posX, inicioY, posX + 50, inicioY + 50, al_map_rgb(50, 50, 50));
         al_draw_rectangle(posX, inicioY, posX + 50, inicioY + 50, al_map_rgb(200, 200, 200), 2);
     }
-    for (i = 0; i < 10; i++) {// hacer #define MAX_ITEM 10
-        if (strcasecmp(p->bag.items[i].nombre, "Llave") == 0) {//okey aqui usas el nombre del objeto
+    for (i = 0; i < MAX_OBJ; i++) {
+        if (strcasecmp(p->bag.items[i].nombre, "Llave") == 0) {
             al_draw_bitmap(spriteLlave, inicioX + 5, inicioY + 5, 0);
             al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 5, inicioY + 55, 0, "Llave");
         }
@@ -1330,14 +1416,18 @@ void dibujarInterfaz(personaje *p, int balas, ALLEGRO_FONT *fuente) {
             al_draw_bitmap(spritePalanca, inicioX + 65, inicioY + 5, 0);
             al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 65, inicioY + 55, 0, "Palanca");
         }
+        if (strcasecmp(p->bag.items[i].nombre, "Bomba") == 0) {
+            al_draw_bitmap(spriteBombaNormal, inicioX + 115, inicioY + 5, 0);
+            al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 125, inicioY + 55, 0, "Bomba");
+        }
     }
-    al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 200, inicioY + 15, 0, "Balas: %d", balas);
-    al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 200, inicioY + 35, 0, "Puntaje: %d", p->puntos);
+    al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 425, inicioY + 15, 0, "Balas: %d", balas);
+    al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 425, inicioY + 35, 0, "Puntaje: %d", p->puntos);
 }
 
 int buscarSlotLibre(personaje *p) {
     int i;
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < MAX_OBJ; i++) {
         if (p->bag.items[i].nombre[0] == '\0') 
         {
             return i;
@@ -1348,35 +1438,14 @@ int buscarSlotLibre(personaje *p) {
 
 void limpiarInventario(personaje *p) {
     int i;
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < MAX_OBJ; i++) {
         p->bag.items[i].nombre[0] = '\0';
     }
 }
 
-void dibujarInventario(personaje *p, ALLEGRO_FONT *fuente) {//no estas usando esta funcion
-    int i;
-    for (i = 0; i < 10; i++) { 
-        if (p->bag.items[i].nombre[0] != '\0') {
-            al_draw_textf(fuente, al_map_rgb(255, 255, 255), 10, 50 + (i * 20), 0, "Slot %d: %s", i+1, p->bag.items[i].nombre);
-        }
-    }    
-}
-
-bool guardarEnInventario(personaje *p, char *nombre, int consumir) {// no estas usando esta funcion
-    int i;
-    for (i = 0; i < 10; i++) {
-        if (p->bag.items[i].nombre[0] == '\0') {
-            strcpy(p->bag.items[i].nombre, nombre);
-            p->bag.items[i].consumir = consumir;
-            return true;
-        }
-    }
-    return false;
-}
-
 bool tieneObjeto(personaje *p, char *nombreObjeto) {
     int i;
-    for (i = 0; i < 10; i++) {
+    for (i = 0; i < MAX_OBJ; i++) {
         if (strcmp(p->bag.items[i].nombre, nombreObjeto) == 0) {
             return true;
         }
@@ -1384,7 +1453,6 @@ bool tieneObjeto(personaje *p, char *nombreObjeto) {
     return false;
 }
 void reiniciarJuego(char mapa[ALTO][ANCHO], Juego *j) {
-    printf("Reiniciando la partida al Nivel 1...\n");
     fflush(stdout);
 
     j->player.vida = 6;
@@ -1395,9 +1463,7 @@ void reiniciarJuego(char mapa[ALTO][ANCHO], Juego *j) {
     j->tieneLlave = false;
     j->cofreAbierto = false;
     j->portalActivo = false;
-
     limpiarInventario(&j->player);
-
     cargarNivelActual(mapa, j);
 }
 
@@ -1406,12 +1472,13 @@ void avanzarSiguienteNivel(char mapa[ALTO][ANCHO], Juego *j) {
 
     if (j->nivelActual > TOTAL_NIVELES) {
         printf("¡Felicidades! Has completado todos los niveles.\n");
-        j->estadoActual = ESTADO_MENU; // Regresa al menú al terminar el juego
-        j->nivelActual = 1;          // Reinicia al nivel 1 para la próxima
+        j->estadoActual = ESTADO_WIN;
     } 
     else {
         printf("Cargando el nivel %d...\n", j->nivelActual);
+        actualizarPuntaje(&j->player, EVENTO_PASAR_NIVEL);
         cargarNivelActual(mapa, j);
+        limpiarInventario(&j->player);
     }
 }
 
@@ -1422,7 +1489,7 @@ void cargarNivelActual(char mapa[ALTO][ANCHO], Juego *j) {
     for (i = 0; i < MAX_ENEMIGOS; i++) {
         j->listaEnemigos[i].activo = false;
     }
-    for (i = 0; i < 20; i++) {
+    for (i = 0; i < MAX_BALAS_PJ; i++) {
         j->player.listaBalas[i].activa = false;
     }
 
