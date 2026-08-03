@@ -28,6 +28,11 @@
 #define MAX_TOP 10
 #define TOTAL_NIVELES 6
 #define LARG_NOMBRE 10
+#define NUM_PALANCAS 4
+#define PALANCA_AZUL     0
+#define PALANCA_VERDE    1
+#define PALANCA_ROJA     2
+#define PALANCA_AMARILLA 3
 #define MAX_OBJ 7
 
 //agregar (x2)...............2
@@ -35,12 +40,8 @@
 //animación
 //item de rango de balas...............2
 //pausa...................2
-//pantalla de win.............1
 //que solo se guarde el puntaje cuando ganas.........1
 //sprite de jugador
-//0 1 1 0
-//pulsa la palanca amarilla y verde para activar el portal
-
 
 typedef enum {
     ESTADO_MENU,
@@ -50,6 +51,8 @@ typedef enum {
     ESTADO_GAME_OVER,
     ESTADO_WIN,
     ESTADO_INGRESAR_NOMBRE,
+    ESTADO_PAUSA,
+    ESTADO_PANTALLA_DE_CARGA,
 } EstadoJuego;
 typedef enum {
     EVENTO_MATAR_ENEMIGO,
@@ -114,6 +117,9 @@ typedef struct {
     bool cofreAbierto;
     bool portalActivo;
     int nivelActual;
+    int palancasRequeridas[NUM_PALANCAS];
+    int palancasActivadas[NUM_PALANCAS];
+    char pistaNivel[128];
 } Juego;
 typedef struct {
     char nombre[LARG_NOMBRE];
@@ -133,7 +139,10 @@ ALLEGRO_BITMAP *spriteCoin = NULL;
 ALLEGRO_BITMAP *spriteBalaPJ = NULL;
 ALLEGRO_BITMAP *spriteCorazon = NULL;
 ALLEGRO_BITMAP *spriteMedioCorazon = NULL;
-ALLEGRO_BITMAP *spritePalanca = NULL;
+ALLEGRO_BITMAP *spritePalanca_ROJA = NULL;
+ALLEGRO_BITMAP *spritePalanca_VERDE = NULL;
+ALLEGRO_BITMAP *spritePalanca_AMARILLA = NULL;
+ALLEGRO_BITMAP *spritePalanca_AZUL = NULL;
 ALLEGRO_BITMAP* spriteBombaNormal = NULL;
 ALLEGRO_BITMAP* spriteBombaActivada = NULL;
 ALLEGRO_BITMAP* spriteBombaExplotada = NULL;
@@ -157,6 +166,7 @@ void actualizarBalasEnemigos(char mapa[ALTO][ANCHO], Juego *j);
 bool esColision(char mapa[ALTO][ANCHO], float x, float y, bool esBala, Juego *j);
 void cargarNivelActual(char mapa[ALTO][ANCHO], Juego *j);
 void avanzarSiguienteNivel(char mapa[ALTO][ANCHO], Juego *j);
+bool validarRequisitosPortal(Juego *j);
 void danhoEnemigos(Juego *j);
 void dibujarInterfaz(personaje *p, int balas, ALLEGRO_FONT *fuente);
 void asignarComportamientos( Juego *j);
@@ -299,7 +309,6 @@ int main() {
                         miJuego.nivelActual = 1;
                         asignarComportamientos(&miJuego);
                         cargarNivelActual(mapa, &miJuego);
-                        miJuego.estadoActual = ESTADO_JUGANDO;
                     }
                     else if (opcionSeleccionada == 1) {
                         miJuego.estadoActual = ESTADO_CONTROLES;
@@ -318,11 +327,31 @@ int main() {
                     miJuego.estadoActual = ESTADO_MENU;
                 }
             }
+            else if (miJuego.estadoActual == ESTADO_PAUSA){
+                if (evento.keyboard.keycode == ALLEGRO_KEY_UP) {
+                    opcionSeleccionada--;
+                    if (opcionSeleccionada < 0) 
+                        opcionSeleccionada = 1;
+                }
+                if (evento.keyboard.keycode == ALLEGRO_KEY_DOWN) {
+                    opcionSeleccionada++;
+                    if (opcionSeleccionada > 1) 
+                        opcionSeleccionada = 0;
+                }
+                if (evento.keyboard.keycode == ALLEGRO_KEY_ENTER) {
+                    if (opcionSeleccionada == 0) {
+                        miJuego.estadoActual = ESTADO_JUGANDO;
+                    }
+                    else if (opcionSeleccionada == 1) {
+                        miJuego.estadoActual = ESTADO_MENU;
+                    } 
+                }
+            }
             else if (miJuego.estadoActual == ESTADO_JUGANDO) {
                 if (evento.keyboard.keycode == ALLEGRO_KEY_ESCAPE) {
-                    miJuego.estadoActual = ESTADO_MENU; // Pausa
+                    miJuego.estadoActual = ESTADO_PAUSA;
                 }
-                if (evento.keyboard.keycode == ALLEGRO_KEY_E) {
+                if (evento.keyboard.keycode == ALLEGRO_KEY_F) {
                     int col = (int)((miJuego.player.X + 25) / 50.0);
                     int fil = (int)((miJuego.player.Y + 25) / 50.0);
                     if (tieneObjeto(&miJuego.player, "Bomba")) {
@@ -341,6 +370,28 @@ int main() {
                                 break;
                             }
                         }
+                    }
+                }
+                if (evento.keyboard.keycode == ALLEGRO_KEY_E) {
+            
+                    int col = (int)((miJuego.player.X + 25) / 50.0);
+                    int fil = (int)((miJuego.player.Y + 25) / 50.0);
+
+                    if (mapa[fil][col] == '1') { 
+                        miJuego.palancasActivadas[PALANCA_AZUL] = 1;
+                        mapa[fil][col] = 'a';
+                    }
+                    else if (mapa[fil][col] == '2') { 
+                        miJuego.palancasActivadas[PALANCA_VERDE] = 1;
+                        mapa[fil][col] = 'v';
+                    }
+                    else if (mapa[fil][col] == '3') { 
+                        miJuego.palancasActivadas[PALANCA_ROJA] = 1;
+                        mapa[fil][col] = 'r';
+                    }
+                    else if (mapa[fil][col] == '4') { 
+                        miJuego.palancasActivadas[PALANCA_AMARILLA] = 1;
+                        mapa[fil][col] = 'm';
                     }
                 }
                 if (evento.keyboard.keycode == ALLEGRO_KEY_SPACE) {
@@ -414,6 +465,7 @@ int main() {
         else if (evento.type == ALLEGRO_EVENT_DISPLAY_CLOSE) {
             salir = true;
         }
+    
 
         //dibujo
         if (redibujar && al_is_event_queue_empty(queue)) {
@@ -431,14 +483,12 @@ int main() {
                 else {
                     colorJugar = al_map_rgb(200, 200, 200);
                 }
-
                 if (opcionSeleccionada == 1) {
                     colorControles = al_map_rgb(255, 255, 0);
                 } 
                 else {
                     colorControles = al_map_rgb(200, 200, 200);
                 }
-
                 if (opcionSeleccionada == 2) {
                     colorPuntaje = al_map_rgb(255, 255, 0);
                 } 
@@ -462,7 +512,8 @@ int main() {
                 al_draw_text(fuenteTitulo, al_map_rgb(255, 255, 255), 960, 100, ALLEGRO_ALIGN_CENTER, "CONTROLES");
                 al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 300, ALLEGRO_ALIGN_CENTER, "WASD: Moverse");
                 al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 340, ALLEGRO_ALIGN_CENTER, "ESPACIO: Disparar");
-                al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 380, ALLEGRO_ALIGN_CENTER, "E: Activar bomba");
+                al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 380, ALLEGRO_ALIGN_CENTER, "F: Activar bomba");
+                al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 380, ALLEGRO_ALIGN_CENTER, "E: Interactuar");
                 al_draw_text(fuenteMenu, al_map_rgb(255, 255, 0), 960, 900, ALLEGRO_ALIGN_CENTER, "Presiona ESC para volver");
             }
             else if (miJuego.estadoActual == ESTADO_PUNTAJE) {
@@ -478,13 +529,35 @@ int main() {
 
                 al_draw_text(fuenteMenu, al_map_rgb(150, 150, 150), 960, 900, ALLEGRO_ALIGN_CENTER, "Presiona ESC para volver");
             }
+
+            else if (miJuego.estadoActual == ESTADO_PAUSA) {
+                al_clear_to_color(al_map_rgb(15, 15, 20));
+                ALLEGRO_COLOR colorJugar, colorSalir;
+
+                if (opcionSeleccionada == 0) {
+                    colorJugar = al_map_rgb(255, 255, 0);
+                } 
+                else {
+                    colorJugar = al_map_rgb(200, 200, 200);
+                }
+                if (opcionSeleccionada == 1) {
+                    colorSalir = al_map_rgb(255, 255, 0);
+                } 
+                else {
+                    colorSalir = al_map_rgb(200, 200, 200);
+                }
+                al_draw_textf(fuenteTitulo, al_map_rgb(255, 215, 0), 960, 180, ALLEGRO_ALIGN_CENTER, "NIVEL %d", miJuego.nivelActual);
+                al_draw_text(fuenteMenu, al_map_rgb(255, 255, 255), 960, 300, ALLEGRO_ALIGN_CENTER, miJuego.pistaNivel);
+                al_draw_text(fuenteMenu, colorJugar, 960, 520, ALLEGRO_ALIGN_CENTER, "CONTINUAR");
+                al_draw_text(fuenteMenu, colorSalir, 960, 580, ALLEGRO_ALIGN_CENTER, "SALIR AL MENU");
+            }
+            
             else if (miJuego.estadoActual == ESTADO_GAME_OVER) {
                 al_draw_text(fuenteTitulo, al_map_rgb(255, 0, 0), 960, 150, ALLEGRO_ALIGN_CENTER, "GAME OVER");
                 
                 char puntosTxt[32];
                 snprintf(puntosTxt, sizeof(puntosTxt), "Puntaje Final: %d", miJuego.player.puntos);
                 al_draw_text(fuenteMenu, al_map_rgb(255, 255, 255), 960, 330, ALLEGRO_ALIGN_CENTER, puntosTxt);
-                
                 al_draw_text(fuenteMenu, al_map_rgb(200, 200, 200), 960, 410, ALLEGRO_ALIGN_CENTER, "Ingresa tu Nombre:");
 
                 if (miJuego.player.lenNombre == 0) {
@@ -494,7 +567,6 @@ int main() {
                     textoMostrar = miJuego.player.nombreIngresado;
                 }
                 al_draw_text(fuenteMenu, al_map_rgb(0, 255, 255), 960, 460, ALLEGRO_ALIGN_CENTER, textoMostrar);
-                
                 al_draw_text(fuenteMenu, al_map_rgb(150, 150, 150), 960, 540, ALLEGRO_ALIGN_CENTER, "Presiona ENTER para guardar | ESC para omitir");
             }
             else if (miJuego.estadoActual == ESTADO_WIN){
@@ -513,7 +585,6 @@ int main() {
                     textoMostrar = miJuego.player.nombreIngresado;
                 }
                 al_draw_text(fuenteMenu, al_map_rgb(0, 255, 255), 960, 460, ALLEGRO_ALIGN_CENTER, textoMostrar);
-
                 al_draw_text(fuenteMenu, al_map_rgb(150, 150, 150), 960, 540, ALLEGRO_ALIGN_CENTER, "Presiona ENTER para guardar | ESC para omitir");
             }
 
@@ -599,6 +670,10 @@ int main() {
     al_destroy_bitmap(spritePared);
     al_destroy_bitmap(spriteCoin);
     al_destroy_bitmap(spritefondo);
+    al_destroy_bitmap(spritePalanca_ROJA);
+    al_destroy_bitmap(spritePalanca_AZUL);
+    al_destroy_bitmap(spritePalanca_VERDE);
+    al_destroy_bitmap(spritePalanca_AMARILLA);
     al_destroy_bitmap(spriteBalaPJ);
     al_destroy_bitmap(spriteBala);
     al_destroy_bitmap(spriteBombaNormal);
@@ -984,7 +1059,30 @@ void dibujarMapa(char mapa[ALTO][ANCHO], Juego *j) {
                     if (spriteCoin) 
                         al_draw_bitmap(spriteCoin, px, py, 0); 
                 break;
-
+                case '1': 
+                    al_draw_bitmap(spritePalanca_AZUL, px, py, 0); 
+                    break;
+                case '2': 
+                    al_draw_bitmap(spritePalanca_VERDE, px, py, 0); 
+                    break;
+                case '3': 
+                    al_draw_bitmap(spritePalanca_ROJA, px, py, 0); 
+                    break;
+                case '4': 
+                    al_draw_bitmap(spritePalanca_AMARILLA, px, py, 0); 
+                    break;
+                case 'a': 
+                    al_draw_scaled_bitmap(spritePalanca_AZUL, 0, 0, 50, 50, px, py, 50, 50, ALLEGRO_FLIP_HORIZONTAL); 
+                    break;
+                case 'v': 
+                    al_draw_scaled_bitmap(spritePalanca_VERDE, 0, 0, 50, 50, px, py, 50, 50, ALLEGRO_FLIP_HORIZONTAL); 
+                    break;
+                case 'r': 
+                    al_draw_scaled_bitmap(spritePalanca_ROJA, 0, 0, 50, 50, px, py, 50, 50, ALLEGRO_FLIP_HORIZONTAL); 
+                    break;
+                case 'm': 
+                    al_draw_scaled_bitmap(spritePalanca_AMARILLA, 0, 0, 50, 50, px, py, 50, 50, ALLEGRO_FLIP_HORIZONTAL); 
+                    break;
             }
         }
     }
@@ -1052,24 +1150,15 @@ void consumibles(char mapa[ALTO][ANCHO], Juego *j) {
     }
     if (mapa[fil][col] == 'C') {
         if (tieneObjeto(&j->player, "Llave")) {
-
-            slotPalanca = buscarSlotLibre(&j->player);
-            if (slotPalanca != -1) {
-                strcpy(j->player.bag.items[slotPalanca].nombre, "Palanca");
+            
                 j->player.rangoDisparo += 200.0;
-            }
 
             mapa[fil][col] = '.';
         }
     } 
     if (mapa[fil][col] == 'P') {
-        if (!j->portalActivo && tieneObjeto(&j->player, "Palanca")) {
-            for (i = 0; i < MAX_OBJ; i++) {
-                if (strcmp(j->player.bag.items[i].nombre, "Palanca") == 0) {
-                    j->player.bag.items[i].nombre[0] = '\0';
-                    break;
-                }
-            }
+        if (validarRequisitosPortal(j)) {
+            j->portalActivo = true;
             avanzarSiguienteNivel(mapa, j);
             asignarComportamientos(j);
         }
@@ -1172,8 +1261,20 @@ void cargarAssets() {
     if(!spriteMedioCorazon){
         printf("spriteMedioCorazon no se pudo cargar\n");
     }
-    spritePalanca = al_load_bitmap("palanca.png");
-    if(!spritePalanca){
+    spritePalanca_AMARILLA = al_load_bitmap("palanca_amarilla.png");
+    if(!spritePalanca_AMARILLA){
+        printf("spritePalanca no se pudo cargar\n");
+    }
+    spritePalanca_VERDE = al_load_bitmap("palanca_verde.png");
+    if(!spritePalanca_VERDE){
+        printf("spritePalanca no se pudo cargar\n");
+    }
+    spritePalanca_AZUL = al_load_bitmap("palanca_azul.png");
+    if(!spritePalanca_AZUL){
+        printf("spritePalanca no se pudo cargar\n");
+    }
+    spritePalanca_ROJA = al_load_bitmap("palanca_roja.png");
+    if(!spritePalanca_ROJA){
         printf("spritePalanca no se pudo cargar\n");
     }
     spriteBalaPJ = al_load_bitmap("balapj.png");
@@ -1412,10 +1513,6 @@ void dibujarInterfaz(personaje *p, int balas, ALLEGRO_FONT *fuente) {
             al_draw_bitmap(spriteLlave, inicioX + 5, inicioY + 5, 0);
             al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 5, inicioY + 55, 0, "Llave");
         }
-        if (strcasecmp(p->bag.items[i].nombre, "Palanca") == 0) {
-            al_draw_bitmap(spritePalanca, inicioX + 65, inicioY + 5, 0);
-            al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 65, inicioY + 55, 0, "Palanca");
-        }
         if (strcasecmp(p->bag.items[i].nombre, "Bomba") == 0) {
             al_draw_bitmap(spriteBombaNormal, inicioX + 115, inicioY + 5, 0);
             al_draw_textf(fuente, al_map_rgb(255, 255, 255), inicioX + 125, inicioY + 55, 0, "Bomba");
@@ -1467,6 +1564,15 @@ void reiniciarJuego(char mapa[ALTO][ANCHO], Juego *j) {
     cargarNivelActual(mapa, j);
 }
 
+bool validarRequisitosPortal(Juego *j) {
+    for (int i = 0; i < NUM_PALANCAS; i++) {
+        if (j->palancasRequeridas[i] == 1 && j->palancasActivadas[i] == 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void avanzarSiguienteNivel(char mapa[ALTO][ANCHO], Juego *j) {
     j->nivelActual++;
 
@@ -1485,15 +1591,9 @@ void avanzarSiguienteNivel(char mapa[ALTO][ANCHO], Juego *j) {
 void cargarNivelActual(char mapa[ALTO][ANCHO], Juego *j) {
     int i, col;
     int indice = 0;
-
-    for (i = 0; i < MAX_ENEMIGOS; i++) {
-        j->listaEnemigos[i].activo = false;
-    }
-    for (i = 0; i < MAX_BALAS_PJ; i++) {
-        j->player.listaBalas[i].activa = false;
-    }
-
     char nombreArchivo[32];
+    char lineaBuffer[512];
+    
     snprintf(nombreArchivo, sizeof(nombreArchivo), "mapa%d.txt", j->nivelActual);
 
     FILE *f = fopen(nombreArchivo, "r");
@@ -1501,11 +1601,43 @@ void cargarNivelActual(char mapa[ALTO][ANCHO], Juego *j) {
         return; 
     }
 
+    if (fgets(lineaBuffer, sizeof(lineaBuffer), f) != NULL) {
+        sscanf(lineaBuffer, "%d %d %d %d", &j->palancasRequeridas[0], &j->palancasRequeridas[1], &j->palancasRequeridas[2], &j->palancasRequeridas[3]);
+    }
+
+    if (fgets(j->pistaNivel, sizeof(j->pistaNivel), f) != NULL) {
+        size_t len = strlen(j->pistaNivel);
+        if (len > 0 && j->pistaNivel[len - 1] == '\n') {
+            j->pistaNivel[len - 1] = '\0';
+        }
+        if (len > 1 && j->pistaNivel[len - 2] == '\r') {
+            j->pistaNivel[len - 2] = '\0';
+        }
+    }
+
+    for (int p = 0; p < NUM_PALANCAS; p++) 
+        j->palancasActivadas[p] = 0;
+    for (i = 0; i < MAX_ENEMIGOS; i++) 
+        j->listaEnemigos[i].activo = false;
+    for (i = 0; i < MAX_BALAS_PJ; i++) 
+        j->player.listaBalas[i].activa = false;
+
     for (i = 0; i < ALTO; i++) {
+        if (fgets(lineaBuffer, sizeof(lineaBuffer), f) == NULL) {
+            break;
+        }
+
         for (col = 0; col < ANCHO; col++) {
-            if (fscanf(f, " %c", &mapa[i][col]) != 1) {
-                break;
-            }
+            mapa[i][col] = lineaBuffer[col];
+
+            if (mapa[i][col] == '1' && j->palancasRequeridas[PALANCA_AZUL] == 0)
+                 mapa[i][col] = '.';
+            if (mapa[i][col] == '2' && j->palancasRequeridas[PALANCA_VERDE] == 0)
+                mapa[i][col] = '.';
+            if (mapa[i][col] == '3' && j->palancasRequeridas[PALANCA_ROJA] == 0)
+                mapa[i][col] = '.';
+            if (mapa[i][col] == '4' && j->palancasRequeridas[PALANCA_AMARILLA] == 0)
+                mapa[i][col] = '.';
 
             if (mapa[i][col] == '@') { 
                 j->player.X = col * TAMANO_CUADRADO; 
@@ -1513,28 +1645,21 @@ void cargarNivelActual(char mapa[ALTO][ANCHO], Juego *j) {
                 mapa[i][col] = '.'; 
             }
 
-            if ((mapa[i][col] == 'E' || mapa[i][col] == 'F' || mapa[i][col] == 'I' || mapa[i][col] == 'A')) {
-                
+            if (mapa[i][col] == 'E' || mapa[i][col] == 'F' || mapa[i][col] == 'I' || mapa[i][col] == 'A') {
                 if (indice < MAX_ENEMIGOS) {
                     j->listaEnemigos[indice].X = col * TAMANO_CUADRADO;
                     j->listaEnemigos[indice].Y = i * TAMANO_CUADRADO;
                     j->listaEnemigos[indice].velocidad = 3.0;
                     j->listaEnemigos[indice].activo = true;
 
-                    if (mapa[i][col] == 'E') {
-                        j->listaEnemigos[indice].tipo = 0;
-                    } 
+                    if (mapa[i][col] == 'E') j->listaEnemigos[indice].tipo = 0;
                     else if (mapa[i][col] == 'F') {
                         j->listaEnemigos[indice].tipo = 1;
                         j->listaEnemigos[indice].visible = 1;
                         j->listaEnemigos[indice].ultimoCambioVisibilidad = 0;
                     } 
-                    else if (mapa[i][col] == 'I') {
-                        j->listaEnemigos[indice].tipo = 2;
-                    } 
-                    else if (mapa[i][col] == 'A') {
-                        j->listaEnemigos[indice].tipo = 3;
-                    }
+                    else if (mapa[i][col] == 'I') j->listaEnemigos[indice].tipo = 2;
+                    else if (mapa[i][col] == 'A') j->listaEnemigos[indice].tipo = 3;
 
                     indice++;
                     mapa[i][col] = '.';
@@ -1548,4 +1673,5 @@ void cargarNivelActual(char mapa[ALTO][ANCHO], Juego *j) {
     j->portalActivo = false;
     j->cofreAbierto = false;
     j->tieneLlave = false;
+    j->estadoActual = ESTADO_PAUSA; 
 }
