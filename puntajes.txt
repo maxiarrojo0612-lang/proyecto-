@@ -1,3 +1,4 @@
+maxi 6950
 maxi 3775
 maxi 3600
 maxi 3500
@@ -6,5 +7,4 @@ maxi 2400
 dario 1525
 maxi 1400
 maxi 1300
-maxi 1000
 maxi 1000

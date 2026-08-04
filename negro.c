@@ -39,7 +39,6 @@
 //sonido.............3
 //animación
 //item de rango de balas...............2
-//pausa...................2
 //que solo se guarde el puntaje cuando ganas.........1
 //sprite de jugador
 
@@ -131,6 +130,7 @@ ALLEGRO_BITMAP *spriteEnemigo = NULL;
 ALLEGRO_BITMAP *spriteFantasma = NULL;
 ALLEGRO_BITMAP *spritePared = NULL;
 ALLEGRO_BITMAP *spritefondo = NULL;
+ALLEGRO_BITMAP *spriteCaja = NULL;
 ALLEGRO_BITMAP *spriteLlave = NULL;
 ALLEGRO_BITMAP *spriteCofre = NULL;
 ALLEGRO_BITMAP *spritePortal = NULL;
@@ -376,6 +376,12 @@ int main() {
             
                     int col = (int)((miJuego.player.X + 25) / 50.0);
                     int fil = (int)((miJuego.player.Y + 25) / 50.0);
+                    if (mapa[fil][col] == 'X') {
+                        char itemsPosibles[] = {'M', '+', 'c', 'B'};
+                        int numItems = sizeof(itemsPosibles) / sizeof(itemsPosibles[0]);
+                        int indiceAzar = rand() % numItems;
+                        mapa[fil][col] = itemsPosibles[indiceAzar];
+                    }
 
                     if (mapa[fil][col] == '1') { 
                         miJuego.palancasActivadas[PALANCA_AZUL] = 1;
@@ -680,6 +686,7 @@ int main() {
     al_destroy_bitmap(spriteBombaActivada);
     al_destroy_bitmap(spriteBombaExplotada);
     al_destroy_bitmap(spritePinches);
+    al_destroy_bitmap(spriteCaja);
     al_destroy_display(display);
     al_destroy_font(miFuente);
     al_destroy_font(fuenteTitulo);
@@ -1083,6 +1090,9 @@ void dibujarMapa(char mapa[ALTO][ANCHO], Juego *j) {
                 case 'm': 
                     al_draw_scaled_bitmap(spritePalanca_AMARILLA, 0, 0, 50, 50, px, py, 50, 50, ALLEGRO_FLIP_HORIZONTAL); 
                     break;
+                case 'X':
+                    al_draw_scaled_bitmap(spriteCaja, 0, 0, 50, 50, px, py, 50, 50, 0);
+                    break;
             }
         }
     }
@@ -1304,6 +1314,10 @@ void cargarAssets() {
     spriteCoin = al_load_bitmap("coin.png");
     if(!spriteCoin){
         printf("spriteCoin no se pudo cargar\n");
+    }
+    spriteCaja = al_load_bitmap("caja.png");
+    if(!spriteCaja){
+        printf("spriteCaja no se pudo cargar\n");
     }
 }
 
